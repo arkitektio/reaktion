@@ -4,6 +4,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.pyc
+token.temp
+*.conf.yaml
 
 # C extensions
 *.so

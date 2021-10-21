@@ -1,0 +1,40 @@
+arkitekt:
+  agent:
+    kwargs:
+      host: localhost
+      port: 8090
+      route: /agent
+      secure: false
+    type: WEBSOCKET
+  host: localhost
+  port: 8090
+  postman:
+    kwargs:
+      host: localhost
+      port: 8090
+      route: /all
+      secure: false
+    type: WEBSOCKET
+  secure: false
+herre:
+  host: p-tnagerl-lab1
+  port: 8000
+  client_id: nX1RcMSQ3FkQWCuw127B1TwZTpxyl7jloDP8GscC
+  client_secret: YdZFYHU2nNn88qPxkqPHqAmiFcznnZBrLCr9iIPjcPtnZ2hjN54Ws0grbxefYf0nsbmImcTHtVgLmzlEnjJJWvchjBq9JRpWFNBvpDKF8WHjZPnsL9Dna3R9Ccfxr9Of
+  authorization_grant_type: CLIENT_CREDENTIALS
+  scopes: 
+      - provider
+      - can_forward_bounce
+      - can_provide
+      - can_assign
+      - introspection
+      - can_create_identifier
+  secure: False
+mikro:
+  host: p-tnagerl-lab1
+  port: 8080
+  secure: false
+fluss:
+  host: p-tnagerl-lab1
+  port: 8070
+  secure: false
