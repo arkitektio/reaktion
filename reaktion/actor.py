@@ -48,9 +48,9 @@ class ReactiveGraphActor(Actor):
 
         for i in cancelled_tasks:
             if i is None:
-                print("Wonderfuly shutdown")
+                logger.info("Wonderfuly shutdown")
             else:
-                print("Shit is going down the drains!")
+                logger.error("Shit is going down the drains!")
 
                 
         logger.info(self.diagramNodeIDReservationMap)
@@ -83,12 +83,10 @@ class ReactiveGraphActor(Actor):
         for id, atom in nodeIDAtomsMap.items():
             tasks.append(loop.create_task(atom.run()))
 
-        print("We are here")
         await outQueue.put(ReturnEvent(diagram_id=self.engine.argNode.id, handle="returns", returns=args))
         await outQueue.put(DoneEvent(diagram_id=self.engine.argNode.id, handle="returns"))
         initial_nodes = self.engine.getInitialNodes()
         for diagramNode in initial_nodes:
-            print(f"Sending Empty Assignment to {diagramNode}")
             await nodeIDAtomsMap[diagramNode.id].assign_handle("args", ReturnEvent(diagram_id=self.engine.argNode.id, handle="returns", returns=[]))
             await nodeIDAtomsMap[diagramNode.id].assign_handle("args", DoneEvent(diagram_id=self.engine.argNode.id, handle="returns"))
 
@@ -140,7 +138,7 @@ class ReactiveGraphActor(Actor):
                 if isinstance(i, CancelEvent):
                    await log(f"Event: {json.dumps(i.dict())}")
                 else:
-                    print("Shit is going down the drains!")
+                    logger.error("Shit is going down the drains!")
 
             raise e
         

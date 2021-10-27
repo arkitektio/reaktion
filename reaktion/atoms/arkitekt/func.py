@@ -23,7 +23,7 @@ class FuncNoParallelArkitektAtom(Atom):
         try:
             while True:
                 event: EventType = await self.inqueue.get()
-                print(f"FUNC REVEICED {event}")
+                logger.info(f"FUNC REVEICED {event}")
 
                 if isinstance(event, DoneEvent):
                     await self.log("Node Upstream is done, we can now also rest")
@@ -53,10 +53,7 @@ class FuncNoParallelArkitektAtom(Atom):
 
         except Exception as e:
             logger.exception(e)
-            print(e)
-
 
 
     async def assign_handle(self, handle: str, event: EventType):
-        print(handle, event)
         await self.inqueue.put(event)
