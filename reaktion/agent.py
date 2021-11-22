@@ -16,7 +16,7 @@ from arkitekt.agents.app import AppAgent
 logger = logging.getLogger(__name__)
 
 
-class FlussAgent(AppAgent):
+class ReaktionAgent(AppAgent):
     ACTOR_PENDING_MESSAGE = "Actor is Pending"
 
     def __init__(self, *args, strict=False, **kwargs) -> None:

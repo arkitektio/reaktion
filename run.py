@@ -18,7 +18,7 @@ logging.root.addHandler(stream)
 
 fakts = Fakts(name="fluss_test", grants=[YamlGrant(filepath="fluss.yaml")])
 
-agent = FlussAgent(with_monitor=False, fakts=fakts)
+agent = ReaktionAgent(with_monitor=False, fakts=fakts)
 
 
 agent.provide()

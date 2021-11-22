@@ -214,12 +214,145 @@ class ReactiveGraphActor(Actor):
 
             raise e
 
-    async def assign_function(self, *args, **kwargs):
+    async def assign_function(self, args, kwargs, assign):
+        assert len(self.engine.argNode.data.args) == len(
+            args
+        ), "Received different arguments then our Engines ArgNode requires"
+        nodeIdConstantsMap = self.engine.generateConstantsMap(kwargs)
+        logger.info(nodeIdConstantsMap)
+
+        outQueue = asyncio.Queue()
+        loop = asyncio.get_event_loop()
+
+        async def log(message, level: LogLevel = LogLevel.INFO):
+            await self.assign_log(assign, message, level=level)
+
+        nodeIDAtomsMap = await self.engine.generateAtoms(
+            outQueue, nodeIdConstantsMap, self.diagramNodeIDReservationMap, log=log
+        )
+
+        tasks = []
+        for id, atom in nodeIDAtomsMap.items():
+            tasks.append(loop.create_task(atom.run()))
+
+        await outQueue.put(
+            ReturnEvent(
+                diagram_id=self.engine.argNode.id, handle="returns", returns=args
+            )
+        )
+        await outQueue.put(
+            DoneEvent(diagram_id=self.engine.argNode.id, handle="returns")
+        )
+        initial_nodes = self.engine.getInitialNodes()
+        for diagramNode in initial_nodes:
+            await nodeIDAtomsMap[diagramNode.id].assign_handle(
+                "args",
+                ReturnEvent(
+                    diagram_id=self.engine.argNode.id, handle="returns", returns=[]
+                ),
+            )
+            await nodeIDAtomsMap[diagramNode.id].assign_handle(
+                "args", DoneEvent(diagram_id=self.engine.argNode.id, handle="returns")
+            )
+
+        saved_returns = None
+
         try:
-            logger.info("Assigning as Function")
-            return [5]
+            while True:
+                event: EventType = await outQueue.get()
+                await log(f"Event: {json.dumps(event.dict())}")
+                logger.info(f"Assingining {event} from Mainloop")
+
+                handle_nodes = self.engine.connectedNodesWithHandle(
+                    event.diagram_id, event.handle
+                )
+
+                for handle, diagramNode in handle_nodes:
+                    logger.info(f" ...  to {handle} on {diagramNode}")
+
+                    if isinstance(event, YieldEvent) or isinstance(event, ReturnEvent):
+                        if isinstance(diagramNode, diagram.ReturnNode):
+                            await log(
+                                f"Event: {json.dumps(YieldEvent(diagram_id=diagramNode.id, returns=event.returns, handle='returns').dict())}"
+                            )
+
+                            if saved_returns is not None:
+                                await log(
+                                    "We have received another event on the output (probably because there is a Generator, we are omitting the old result"
+                                )
+
+                            saved_returns = event.returns
+                        else:
+                            await nodeIDAtomsMap[diagramNode.id].assign_handle(
+                                handle, event
+                            )
+
+                    # TODO: Handle SKip events
+
+                    if isinstance(event, DoneEvent):
+                        if isinstance(diagramNode, diagram.ReturnNode):
+                            await log(
+                                f"Event: {json.dumps(DoneEvent(diagram_id=diagramNode.id, handle='returns').dict())}"
+                            )
+                            assert (
+                                saved_returns is not None
+                            ), "We received a Done event before a yield event"
+                            return saved_returns
+                        else:
+                            await nodeIDAtomsMap[diagramNode.id].assign_handle(
+                                handle, event
+                            )
+
+                    if isinstance(event, ErrorEvent):
+                        if isinstance(diagramNode, diagram.ReturnNode):
+                            await log(
+                                f"Event: {json.dumps(ErrorEvent(diagram_id=diagramNode.id, exception=event.exception, message=event.message, throwing=event.throwing, handle='returns').dict())}"
+                            )
+                            raise type(event.exception, (Exception,), {})(event.message)
+                        else:
+                            await nodeIDAtomsMap[diagramNode.id].assign_handle(
+                                handle, event
+                            )
+
         except asyncio.CancelledError as e:
-            logger.info("Assigning as Function")
+            logger.error("Received Cancellation babe")
+
+            await log(
+                f"Event: {json.dumps(CancelEvent(diagram_id=self.engine.argNode.id,handle='args').dict())}"
+            )
+            await log(
+                f"Event: {json.dumps(CancelEvent(diagram_id=self.engine.kwargNode.id,handle='args').dict())}"
+            )
+            await log(
+                f"Event: {json.dumps(CancelEvent(diagram_id=self.engine.returnNode.id,handle='args').dict())}"
+            )
+
+            for task in tasks:
+                task.cancel()
+
+            cancelled_tasks = await asyncio.gather(*tasks, return_exceptions=True)
+            for i in cancelled_tasks:
+                if isinstance(i, CancelEvent):
+                    await log(f"Event: {json.dumps(i.dict())}")
+                else:
+                    logger.error("Shit is going down the drains!")
+
+            raise e
+
+        except Exception as e:
+
+            for task in tasks:
+                task.cancel()
+
+            cancelled_tasks = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for i in cancelled_tasks:
+                if isinstance(i, CancelEvent):
+                    await log(f"Event: {json.dumps(i.dict())}")
+                else:
+                    print("Shit is going down the drains!")
+
+            raise e
 
     async def on_assign(self, message: BouncedForwardedAssignMessage):
         try:

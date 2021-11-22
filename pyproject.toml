@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "reaktion"
-version = "0.1.0"
+version = "0.1.3"
 description = ""
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-arkitekt = "^0.1.50"
-fluss = "^0.1.12"
+arkitekt = "^0.1.98"
+fluss = "^0.1.17"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
