@@ -1,17 +1,26 @@
 [tool.poetry]
 name = "reaktion"
-version = "0.1.3"
+version = "0.1.7"
 description = ""
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-arkitekt = "^0.1.98"
-fluss = "^0.1.17"
+arkitekt = "^0.1.114"
+fluss = "^0.1.21"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
+pytest-cov = "^3.0.0"
+black = "^21.12b0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[[tool.pydoc-markdown.loaders]]
+type = "python"
+search_path = [ "reaktion" ]
+
+[tool.pydoc-markdown.renderer]
+type = "docusaurus"
