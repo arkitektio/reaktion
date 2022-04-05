@@ -1,84 +1,44 @@
-from arkitekt.messages.postman.reserve.reserve_transition import ReserveState
-from arkitekt.messages.postman.provide.provide_transition import ProvideState
-from typing import List, Union
-from pydantic.main import BaseModel
+from typing import Tuple, Union
+from prometheus_client import Enum
+from pydantic import BaseModel, Field
 
 
-class ProvideEvent(BaseModel):
-    diagram_id: str
+class EventType(str, Enum):
+    NEXT = "next"
+    ERROR = "error"
+    COMPLETE = "complete"
 
 
-class TransitionEvent(ProvideEvent):
-    type: str = "TRANSITION"
-    state: ReserveState
-    message: str
-    reservation: str
+Returns = Tuple
 
 
-class Event(BaseModel):
-    diagram_id: str
-    handle: str
-    pass
+class InEvent(BaseModel):
+    target: str
+    """The node that is targeted by the event"""
+    handle: str = Field(..., description="The handle of the port")
+    """ The handle of the port that emitted the event"""
+    type: EventType = Field(..., description="The event type")
+    """ The type of event"""
+    value: Union[Exception, Returns] = Field(
+        None, description="The value of the event (null, exception or any"
+    )
+    """ The attached value of the event"""
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
-class DoneEvent(Event):
-    type: str = "DONE"
-    """When a Node sends a Done event it will no longer
-    send any return
+class OutEvent(BaseModel):
+    source: str
+    """ The node that emitted the event """
+    handle: str = Field(..., description="The handle of the port")
+    """ The handle of the port that emitted the event"""
+    type: EventType = Field(..., description="The event type")
+    """ The type of event"""
+    value: Union[Exception, Returns] = Field(
+        None, description="The value of the event (null, exception or any"
+    )
+    """ The attached value of the event"""
 
-    Args:
-        BaseModel ([type]): [description]
-    """
-
-
-class CancelEvent(Event):
-    type: str = "CANCEL"
-    """When a Node sends a Done event it will no longer
-    send any return
-
-    Args:
-        BaseModel ([type]): [description]
-    """
-
-
-class YieldEvent(Event):
-    type: str = "YIELD"
-    """When a Node sends a Done event it will no longer
-    send any return
-
-    Args:
-        BaseModel ([type]): [description]
-    """
-    returns: List
-
-
-class ReturnEvent(Event):
-    type: str = "RETURN"
-    """When a Node sends a Done event it will no longer
-    send any return
-
-    Args:
-        BaseModel ([type]): [description]
-    """
-    returns: List
-
-
-class ErrorEvent(Event):
-    type: str = "ERROR"
-    throwing: str  # the node that threw the event
-    exception: str
-    message: str
-
-
-class SkipEvent(Event):
-    type: str = "SKIP"
-    skipper: str  # the node that skipped a beat
-    """When a Node sends a Done event it will no longer
-    send any return
-
-    Args:
-        BaseModel ([type]): [description]
-    """
-
-
-EventType = Union[DoneEvent, YieldEvent, ReturnEvent, ErrorEvent]
+    class Config:
+        arbitrary_types_allowed = True

@@ -1,436 +1,128 @@
-from arkitekt.messages.postman.assign.assign_log import AssignLogMessage
-from arkitekt.messages.postman.assign.bounced_assign import BouncedAssignMessage
-from arkitekt.messages.postman.log import LogLevel
-from arkitekt.messages.postman.assign.assign_critical import AssignCriticalMessage
-from arkitekt.messages.postman.provide.bounced_provide import BouncedProvideMessage
-from reaktion.events import (
-    CancelEvent,
-    DoneEvent,
-    ErrorEvent,
-    EventType,
-    ReturnEvent,
-    SkipEvent,
-    TransitionEvent,
-    YieldEvent,
-)
-from arkitekt.messages.postman.assign.assign_done import AssignDoneMessage
-from arkitekt.messages.postman.assign.assign_yield import AssignYieldsMessage
-from arkitekt.messages.postman.assign.assign_cancelled import AssignCancelledMessage
-from arkitekt.messages.postman.assign.assign_return import AssignReturnMessage
-from arkitekt.schema.enums import NodeType
-from arkitekt.packers.utils import expand_inputs
-from arkitekt.messages.postman.assign.bounced_forwarded_assign import (
-    BouncedForwardedAssignMessage,
-)
-from arkitekt.messages.postman.reserve.reserve_transition import ReserveState
-from arkitekt.schema import Node
-from reaktion.engine import Engine
-from typing import Dict
-from fluss.schema import Graph
-from arkitekt.actors.base import Actor
-from arkitekt.contracts.reservation import Reservation
-from fluss import diagram
-from arkitekt.threadvars import assign_message
 import asyncio
-import logging
-import json
+from typing import Dict
 
-logger = logging.getLogger(__name__)
+from pydantic import Field
+from arkitekt.actors.base import Actor
+from arkitekt.api.schema import TemplateFragment, afind
+from arkitekt.messages import Assignation, Provision
+from arkitekt.postmans.utils import ReservationContract, use
+from koil.types import Contextual
+from fluss.api.schema import (
+    ArgNodeFragment,
+    ArkitektNodeFragment,
+    FlowFragment,
+    KwargNodeFragment,
+    ReactiveNodeFragment,
+    ReturnNodeFragment,
+    aget_flow,
+)
+from reaktion.events import EventType, OutEvent
+from .utils import atomify, connected_events
 
 
-class ReactiveGraphActor(Actor):
-    async def on_reservation_transition(
-        self, diagramID: str, reservation: Reservation, state: ReserveState
-    ):
-        await self.provide_log(
-            f"Event: {json.dumps(TransitionEvent(diagram_id=diagramID, reservation=reservation.reference, state=state, message='Caused by a Transition').dict())}"
-        )
+class FlowActor(Actor):
 
-    async def on_provide(self, provision: BouncedProvideMessage):
-        self.graph = await Graph.asyncs.get(template=self.template)
-        self.node = await Node.asyncs.get(template=self.template)
-        self.engine = Engine(self.graph.diagram)
+    contracts: Dict[str, ReservationContract] = Field(default_factory=dict)
+    flow: Contextual[FlowFragment]
 
-        self.diagramNodeIDReservationMap = await self.engine.generateReservationsMap(
-            provision.meta.reference,
-            provision.meta.context,
-            self.on_reservation_transition,
-        )
-        logger.info(self.diagramNodeIDReservationMap)
-        # Now we can start the reservations
+    async def on_provide(self, provision: Provision, template: TemplateFragment):
+        self.flow = await aget_flow(id=template.params["flow"])
 
-    async def on_unprovide(self, provision: BouncedProvideMessage):
-        ending_futures = [
-            res.end() for id, res in self.diagramNodeIDReservationMap.items()
+        argNode = [x for x in self.flow.nodes if isinstance(x, ArgNodeFragment)][0]
+        kwargNode = [x for x in self.flow.nodes if isinstance(x, KwargNodeFragment)][0]
+        returnNode = [x for x in self.flow.nodes if isinstance(x, ReturnNodeFragment)][
+            0
         ]
-        cancelled_tasks = await asyncio.gather(*ending_futures, return_exceptions=True)
 
-        for i in cancelled_tasks:
-            if i is None:
-                logger.info("Wonderfuly shutdown")
-            else:
-                logger.error("Shit is going down the drains!")
+        arkitektNodes = [
+            x for x in self.flow.nodes if isinstance(x, ArkitektNodeFragment)
+        ]
 
-        logger.info(self.diagramNodeIDReservationMap)
+        instances = {
+            x.id: await afind(package=x.package, interface=x.interface)
+            for x in arkitektNodes
+        }
 
-    async def assign_log(
-        self,
-        assign: BouncedAssignMessage,
-        message: str,
-        level: LogLevel = LogLevel.INFO,
-    ):
-        message = AssignLogMessage(
-            data={"message": str(message), "level": level},
-            meta={**assign.meta.dict(exclude={"type"})},
+        self.contracts = {key: use(value) for key, value in instances.items()}
+
+        for contract in self.contracts.values():
+            await contract.connect()
+
+    async def on_assign(self, assignation: Assignation):
+
+        event_queue = asyncio.Queue()
+
+        argNode = [x for x in self.flow.nodes if isinstance(x, ArgNodeFragment)][0]
+        kwargNode = [x for x in self.flow.nodes if isinstance(x, KwargNodeFragment)][0]
+        returnNode = [x for x in self.flow.nodes if isinstance(x, ReturnNodeFragment)][
+            0
+        ]
+
+        participatingNodes = [
+            x
+            for x in self.flow.nodes
+            if isinstance(x, ArkitektNodeFragment)
+            or isinstance(x, ReactiveNodeFragment)
+        ]
+
+        atoms = {
+            x.id: atomify(x, event_queue, self.contracts) for x in participatingNodes
+        }
+        for atom in atoms.values():
+            print(atom.json(indent=4))
+
+        tasks = [asyncio.create_task(atom.run()) for atom in atoms.values()]
+
+        initial_event = OutEvent(
+            handle="returns", type=EventType.NEXT, source=argNode.id, value=(1, 2)
         )
-        await self.transport.forward(message)
-
-    async def assign_generator(self, args, kwargs, assign):
-        assert len(self.engine.argNode.data.args) == len(
-            args
-        ), "Received different arguments then our Engines ArgNode requires"
-        nodeIdConstantsMap = self.engine.generateConstantsMap(kwargs)
-        logger.info(nodeIdConstantsMap)
-
-        outQueue = asyncio.Queue()
-        loop = asyncio.get_event_loop()
-
-        async def log(message, level: LogLevel = LogLevel.INFO):
-            await self.assign_log(assign, message, level=level)
-
-        nodeIDAtomsMap = await self.engine.generateAtoms(
-            outQueue, nodeIdConstantsMap, self.diagramNodeIDReservationMap, log=log
-        )
-
-        tasks = []
-        for id, atom in nodeIDAtomsMap.items():
-            tasks.append(loop.create_task(atom.run()))
-
-        await outQueue.put(
-            ReturnEvent(
-                diagram_id=self.engine.argNode.id, handle="returns", returns=args
-            )
-        )
-        await outQueue.put(
-            DoneEvent(diagram_id=self.engine.argNode.id, handle="returns")
-        )
-        initial_nodes = self.engine.getInitialNodes()
-        for diagramNode in initial_nodes:
-            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                "args",
-                ReturnEvent(
-                    diagram_id=self.engine.argNode.id, handle="returns", returns=[]
-                ),
-            )
-            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                "args", DoneEvent(diagram_id=self.engine.argNode.id, handle="returns")
-            )
-
-        try:
-            while True:
-                event: EventType = await outQueue.get()
-                await log(f"Event: {json.dumps(event.dict())}")
-                logger.info(f"Assingining {event} from Mainloop")
-
-                handle_nodes = self.engine.connectedNodesWithHandle(
-                    event.diagram_id, event.handle
-                )
-
-                for handle, diagramNode in handle_nodes:
-                    logger.info(f" ...  to {handle} on {diagramNode}")
-
-                    if isinstance(event, YieldEvent) or isinstance(event, ReturnEvent):
-                        if isinstance(diagramNode, diagram.ReturnNode):
-                            await log(
-                                f"Event: {json.dumps(YieldEvent(diagram_id=diagramNode.id, returns=event.returns, handle='returns').dict())}"
-                            )
-                            yield event.returns
-                        else:
-                            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                                handle, event
-                            )
-
-                    # TODO: Handle SKip events
-
-                    if isinstance(event, DoneEvent):
-                        if isinstance(diagramNode, diagram.ReturnNode):
-                            await log(
-                                f"Event: {json.dumps(DoneEvent(diagram_id=diagramNode.id, handle='returns').dict())}"
-                            )
-                            return
-                        else:
-                            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                                handle, event
-                            )
-
-                    if isinstance(event, ErrorEvent):
-                        if isinstance(diagramNode, diagram.ReturnNode):
-                            await log(
-                                f"Event: {json.dumps(ErrorEvent(diagram_id=diagramNode.id, exception=event.exception, message=event.message, throwing=event.throwing, handle='returns').dict())}"
-                            )
-                            raise type(event.exception, (Exception,), {})(event.message)
-                        else:
-                            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                                handle, event
-                            )
-
-        except asyncio.CancelledError as e:
-            logger.error("Received Cancellation babe")
-
-            await log(
-                f"Event: {json.dumps(CancelEvent(diagram_id=self.engine.argNode.id,handle='args').dict())}"
-            )
-            await log(
-                f"Event: {json.dumps(CancelEvent(diagram_id=self.engine.kwargNode.id,handle='args').dict())}"
-            )
-            await log(
-                f"Event: {json.dumps(CancelEvent(diagram_id=self.engine.returnNode.id,handle='args').dict())}"
-            )
-
-            for task in tasks:
-                task.cancel()
-
-            cancelled_tasks = await asyncio.gather(*tasks, return_exceptions=True)
-            for i in cancelled_tasks:
-                if isinstance(i, CancelEvent):
-                    await log(f"Event: {json.dumps(i.dict())}")
-                else:
-                    logger.error("Shit is going down the drains!")
-
-            raise e
-
-        except Exception as e:
-
-            for task in tasks:
-                task.cancel()
-
-            cancelled_tasks = await asyncio.gather(*tasks, return_exceptions=True)
-
-            for i in cancelled_tasks:
-                if isinstance(i, CancelEvent):
-                    await log(f"Event: {json.dumps(i.dict())}")
-                else:
-                    print("Shit is going down the drains!")
-
-            raise e
-
-    async def assign_function(self, args, kwargs, assign):
-        assert len(self.engine.argNode.data.args) == len(
-            args
-        ), "Received different arguments then our Engines ArgNode requires"
-        nodeIdConstantsMap = self.engine.generateConstantsMap(kwargs)
-        logger.info(nodeIdConstantsMap)
-
-        outQueue = asyncio.Queue()
-        loop = asyncio.get_event_loop()
-
-        async def log(message, level: LogLevel = LogLevel.INFO):
-            await self.assign_log(assign, message, level=level)
-
-        nodeIDAtomsMap = await self.engine.generateAtoms(
-            outQueue, nodeIdConstantsMap, self.diagramNodeIDReservationMap, log=log
+        initial_done_event = OutEvent(
+            handle="returns", type=EventType.COMPLETE, source=argNode.id
         )
 
-        tasks = []
-        for id, atom in nodeIDAtomsMap.items():
-            tasks.append(loop.create_task(atom.run()))
+        await event_queue.put(initial_event)
+        await event_queue.put(initial_done_event)
+        print("Starting Workflow")
 
-        await outQueue.put(
-            ReturnEvent(
-                diagram_id=self.engine.argNode.id, handle="returns", returns=args
-            )
-        )
-        await outQueue.put(
-            DoneEvent(diagram_id=self.engine.argNode.id, handle="returns")
-        )
-        initial_nodes = self.engine.getInitialNodes()
-        for diagramNode in initial_nodes:
-            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                "args",
-                ReturnEvent(
-                    diagram_id=self.engine.argNode.id, handle="returns", returns=[]
-                ),
-            )
-            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                "args", DoneEvent(diagram_id=self.engine.argNode.id, handle="returns")
-            )
+        not_complete = True
 
-        saved_returns = None
+        while not_complete:
+            event = await event_queue.get()
+            print("Received event", event)
+            spawned_events = connected_events(self.flow, event)
 
-        try:
-            while True:
-                event: EventType = await outQueue.get()
-                await log(f"Event: {json.dumps(event.dict())}")
-                logger.info(f"Assingining {event} from Mainloop")
+            for spawned_event in spawned_events:
+                print("->", spawned_event)
 
-                handle_nodes = self.engine.connectedNodesWithHandle(
-                    event.diagram_id, event.handle
-                )
+                if spawned_event.target == returnNode.id:
 
-                for handle, diagramNode in handle_nodes:
-                    logger.info(f" ...  to {handle} on {diagramNode}")
+                    if spawned_event.type == EventType.NEXT:
+                        print("Setting result")
+                        result = spawned_event.value
+                        continue
 
-                    if isinstance(event, YieldEvent) or isinstance(event, ReturnEvent):
-                        if isinstance(diagramNode, diagram.ReturnNode):
-                            await log(
-                                f"Event: {json.dumps(YieldEvent(diagram_id=diagramNode.id, returns=event.returns, handle='returns').dict())}"
-                            )
+                    if spawned_event.type == EventType.ERROR:
+                        raise spawned_event.value
 
-                            if saved_returns is not None:
-                                await log(
-                                    "We have received another event on the output (probably because there is a Generator, we are omitting the old result"
-                                )
+                    if spawned_event.type == EventType.COMPLETE:
+                        print("Going out?")
+                        not_complete = False
+                        continue
 
-                            saved_returns = event.returns
-                        else:
-                            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                                handle, event
-                            )
+                assert (
+                    spawned_event.target in atoms
+                ), "Unknown target. Your flow is connected wrong"
+                if spawned_event.target in atoms:
+                    await atoms[spawned_event.target].put(spawned_event)
 
-                    # TODO: Handle SKip events
+        for tasks in tasks:
+            tasks.cancel()
 
-                    if isinstance(event, DoneEvent):
-                        if isinstance(diagramNode, diagram.ReturnNode):
-                            await log(
-                                f"Event: {json.dumps(DoneEvent(diagram_id=diagramNode.id, handle='returns').dict())}"
-                            )
-                            assert (
-                                saved_returns is not None
-                            ), "We received a Done event before a yield event"
-                            return saved_returns
-                        else:
-                            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                                handle, event
-                            )
+        await asyncio.gather(*tasks)
 
-                    if isinstance(event, ErrorEvent):
-                        if isinstance(diagramNode, diagram.ReturnNode):
-                            await log(
-                                f"Event: {json.dumps(ErrorEvent(diagram_id=diagramNode.id, exception=event.exception, message=event.message, throwing=event.throwing, handle='returns').dict())}"
-                            )
-                            raise type(event.exception, (Exception,), {})(event.message)
-                        else:
-                            await nodeIDAtomsMap[diagramNode.id].assign_handle(
-                                handle, event
-                            )
+        return result
 
-        except asyncio.CancelledError as e:
-            logger.error("Received Cancellation babe")
+    async def on_unprovide(self):
 
-            await log(
-                f"Event: {json.dumps(CancelEvent(diagram_id=self.engine.argNode.id,handle='args').dict())}"
-            )
-            await log(
-                f"Event: {json.dumps(CancelEvent(diagram_id=self.engine.kwargNode.id,handle='args').dict())}"
-            )
-            await log(
-                f"Event: {json.dumps(CancelEvent(diagram_id=self.engine.returnNode.id,handle='args').dict())}"
-            )
-
-            for task in tasks:
-                task.cancel()
-
-            cancelled_tasks = await asyncio.gather(*tasks, return_exceptions=True)
-            for i in cancelled_tasks:
-                if isinstance(i, CancelEvent):
-                    await log(f"Event: {json.dumps(i.dict())}")
-                else:
-                    logger.error("Shit is going down the drains!")
-
-            raise e
-
-        except Exception as e:
-
-            for task in tasks:
-                task.cancel()
-
-            cancelled_tasks = await asyncio.gather(*tasks, return_exceptions=True)
-
-            for i in cancelled_tasks:
-                if isinstance(i, CancelEvent):
-                    await log(f"Event: {json.dumps(i.dict())}")
-                else:
-                    print("Shit is going down the drains!")
-
-            raise e
-
-    async def on_assign(self, message: BouncedForwardedAssignMessage):
-        try:
-            logger.info(f"Assignment received {message}")
-            args, kwargs = (
-                message.data.args,
-                message.data.kwargs,
-            )  # We are not expanding the inputs as they are just passed on
-
-            assign_message.set(message)
-
-            if self.node.type == NodeType.FUNCTION:
-                returns = await self.assign_function(args, kwargs, message)
-                assign_message.set(None)
-
-                await self.transport.forward(
-                    AssignReturnMessage(
-                        data={
-                            "returns": returns
-                            or []  # We are not shrinking the outputs as they are already shrinked
-                        },
-                        meta={
-                            "reference": message.meta.reference,
-                            "extensions": message.meta.extensions,
-                        },
-                    )
-                )
-
-            if self.node.type == NodeType.GENERATOR:
-                async for returns in self.assign_generator(args, kwargs, message):
-                    await self.transport.forward(
-                        AssignYieldsMessage(
-                            data={"returns": returns or []},
-                            meta={
-                                "reference": message.meta.reference,
-                                "extensions": message.meta.extensions,
-                            },
-                        )
-                    )
-
-                assign_message.set(None)
-
-                await self.transport.forward(
-                    AssignDoneMessage(
-                        data={"returns": None},
-                        meta={
-                            "reference": message.meta.reference,
-                            "extensions": message.meta.extensions,
-                        },
-                    )
-                )
-
-        except asyncio.CancelledError as e:
-
-            await self.transport.forward(
-                AssignCancelledMessage(
-                    data={"canceller": str(e)},
-                    meta={
-                        "reference": message.meta.reference,
-                        "extensions": message.meta.extensions,
-                    },
-                )
-            )
-
-        except Exception as e:
-            logger.exception(e)
-            await self.transport.forward(
-                AssignCriticalMessage(
-                    data={"type": e.__class__.__name__, "message": str(e)},
-                    meta={
-                        "reference": message.meta.reference,
-                        "extensions": message.meta.extensions,
-                    },
-                )
-            )
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.diagramNodeReservation: Dict[
-            diagram.ArkitektNode.id, Reservation
-        ] = {}  # A map of
+        for contract in self.contracts.values():
+            await contract.adisconnect()
