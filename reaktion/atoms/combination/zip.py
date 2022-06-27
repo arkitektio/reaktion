@@ -1,5 +1,8 @@
 import asyncio
 from typing import Tuple
+import uuid
+from arkitekt.api.schema import AssignationLogLevel
+from arkitekt.messages import Assignation
 from reaktion.atoms.combination.base import CombinationAtom
 from reaktion.events import EventType, OutEvent, Returns
 import logging
@@ -40,6 +43,12 @@ class ZipAtom(CombinationAtom):
                         self.state = (self.state[0], event)
 
                 if self.complete == (True, True):
+                    if self.alog:
+                        await self.alog(
+                            self.node.id,
+                            AssignationLogLevel.INFO,
+                            "ZipAtom: Complete",
+                        )
                     await self.event_queue.put(
                         OutEvent(
                             handle="return_0",

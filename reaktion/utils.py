@@ -1,9 +1,9 @@
 from typing import List
-from fluss.api.schema import FlowFragment
+from fluss.api.schema import FlowFragment, FlowFragmentGraph
 from .events import OutEvent, InEvent
 
 
-def connected_events(flow: FlowFragment, event: OutEvent) -> List[InEvent]:
+def connected_events(graph: FlowFragmentGraph, event: OutEvent) -> List[InEvent]:
 
     return [
         InEvent(
@@ -12,6 +12,6 @@ def connected_events(flow: FlowFragment, event: OutEvent) -> List[InEvent]:
             type=event.type,
             value=event.value,
         )
-        for edge in flow.edges
+        for edge in graph.edges
         if edge.source == event.source and edge.source_handle == event.handle
     ]

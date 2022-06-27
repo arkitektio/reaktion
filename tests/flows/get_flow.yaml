@@ -1,0 +1,167 @@
+__typename: null
+edges:
+- __typename: LabeledEdge
+  id: reactflow__edge-1return_0-arkid-94d18258-7cba-44b0-af74-3a15c822e3a4arg_0
+  label: int, int
+  source: '1'
+  sourceHandle: return_0
+  target: arkid-94d18258-7cba-44b0-af74-3a15c822e3a4
+  targetHandle: arg_0
+- __typename: LabeledEdge
+  id: reactflow__edge-arkid-94d18258-7cba-44b0-af74-3a15c822e3a4return_0-reactive-d80d33cc-8276-4643-9e2a-19d5315e5367arg_1
+  label: int
+  source: arkid-94d18258-7cba-44b0-af74-3a15c822e3a4
+  sourceHandle: return_0
+  target: reactive-d80d33cc-8276-4643-9e2a-19d5315e5367
+  targetHandle: arg_1
+- __typename: LabeledEdge
+  id: reactflow__edge-1return_0-arkid-e1551a22-dfc7-4416-a715-be4cd94d34c8arg_0
+  label: int, int
+  source: '1'
+  sourceHandle: return_0
+  target: arkid-e1551a22-dfc7-4416-a715-be4cd94d34c8
+  targetHandle: arg_0
+- __typename: LabeledEdge
+  id: reactflow__edge-arkid-e1551a22-dfc7-4416-a715-be4cd94d34c8return_0-reactive-d80d33cc-8276-4643-9e2a-19d5315e5367arg_0
+  label: int
+  source: arkid-e1551a22-dfc7-4416-a715-be4cd94d34c8
+  sourceHandle: return_0
+  target: reactive-d80d33cc-8276-4643-9e2a-19d5315e5367
+  targetHandle: arg_0
+- __typename: LabeledEdge
+  id: reactflow__edge-reactive-d80d33cc-8276-4643-9e2a-19d5315e5367return_0-2return_0
+  label: int, int
+  source: reactive-d80d33cc-8276-4643-9e2a-19d5315e5367
+  sourceHandle: return_0
+  target: '2'
+  targetHandle: return_0
+globals: []
+nodes:
+- __typename: ArgNode
+  constants: null
+  constream:
+  - []
+  extra: null
+  id: '1'
+  instream:
+  - []
+  outstream:
+  - - __typename: null
+      key: x
+      type: int
+    - __typename: null
+      key: y
+      type: int
+  position:
+    __typename: null
+    x: -274
+    y: -177
+- __typename: ReturnNode
+  constants: null
+  constream:
+  - []
+  extra: null
+  id: '2'
+  instream:
+  - - __typename: null
+      key: return0
+      type: int
+    - __typename: null
+      key: return0
+      type: int
+  outstream:
+  - - __typename: null
+      key: return0
+      type: int
+    - __typename: null
+      key: return0
+      type: int
+  position:
+    __typename: null
+    x: 1233
+    y: -299
+- __typename: KwargNode
+  constants: null
+  constream:
+  - []
+  extra: null
+  id: '3'
+  instream:
+  - []
+  outstream:
+  - []
+  position:
+    __typename: null
+    x: 750
+    y: 100
+- __typename: ReactiveNode
+  constants: null
+  constream: []
+  id: reactive-d80d33cc-8276-4643-9e2a-19d5315e5367
+  implementation: zip
+  instream:
+  - - __typename: null
+      key: return0
+      type: int
+  - - __typename: null
+      key: return0
+      type: int
+  outstream:
+  - - __typename: null
+      key: return0
+      type: int
+    - __typename: null
+      key: return0
+      type: int
+  position:
+    __typename: null
+    x: 757
+    y: -144
+- __typename: ArkitektNode
+  constants: null
+  constream: []
+  description: null
+  id: arkid-94d18258-7cba-44b0-af74-3a15c822e3a4
+  instream:
+  - - __typename: null
+      key: x
+      type: int
+    - __typename: null
+      key: y
+      type: int
+  interface: run_simple
+  kind: FUNCTION
+  name: Run a simple function.
+  outstream:
+  - - __typename: null
+      key: return0
+      type: int
+  package: simple_joy
+  position:
+    __typename: null
+    x: 322
+    y: 77
+- __typename: ArkitektNode
+  constants: null
+  constream: []
+  description: null
+  id: arkid-e1551a22-dfc7-4416-a715-be4cd94d34c8
+  instream:
+  - - __typename: null
+      key: x
+      type: int
+    - __typename: null
+      key: y
+      type: int
+  interface: run_double
+  kind: FUNCTION
+  name: Run a simple function.
+  outstream:
+  - - __typename: null
+      key: return0
+      type: int
+  package: simple_joy
+  position:
+    __typename: null
+    x: 93
+    y: -425

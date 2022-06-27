@@ -3,7 +3,7 @@ from typing import Dict
 
 from pydantic import Field
 from arkitekt.actors.base import Actor
-from arkitekt.api.schema import TemplateFragment, afind
+from arkitekt.api.schema import ProvisionFragment, TemplateFragment, afind
 from arkitekt.messages import Assignation, Provision
 from arkitekt.postmans.utils import ReservationContract, use
 from koil.types import Contextual
@@ -21,21 +21,24 @@ from .utils import atomify, connected_events
 
 
 class FlowActor(Actor):
-
     contracts: Dict[str, ReservationContract] = Field(default_factory=dict)
     flow: Contextual[FlowFragment]
 
-    async def on_provide(self, provision: Provision, template: TemplateFragment):
-        self.flow = await aget_flow(id=template.params["flow"])
+    async def on_provide(self, provision: ProvisionFragment):
+        self.flow = await aget_flow(id=self.provision.template.params["flow"])
 
-        argNode = [x for x in self.flow.nodes if isinstance(x, ArgNodeFragment)][0]
-        kwargNode = [x for x in self.flow.nodes if isinstance(x, KwargNodeFragment)][0]
-        returnNode = [x for x in self.flow.nodes if isinstance(x, ReturnNodeFragment)][
+        argNode = [x for x in self.flow.graph.nodes if isinstance(x, ArgNodeFragment)][
             0
         ]
+        kwargNode = [
+            x for x in self.flow.graph.nodes if isinstance(x, KwargNodeFragment)
+        ][0]
+        returnNode = [
+            x for x in self.flow.graph.nodes if isinstance(x, ReturnNodeFragment)
+        ][0]
 
         arkitektNodes = [
-            x for x in self.flow.nodes if isinstance(x, ArkitektNodeFragment)
+            x for x in self.flow.graph.nodes if isinstance(x, ArkitektNodeFragment)
         ]
 
         instances = {
@@ -52,15 +55,19 @@ class FlowActor(Actor):
 
         event_queue = asyncio.Queue()
 
-        argNode = [x for x in self.flow.nodes if isinstance(x, ArgNodeFragment)][0]
-        kwargNode = [x for x in self.flow.nodes if isinstance(x, KwargNodeFragment)][0]
-        returnNode = [x for x in self.flow.nodes if isinstance(x, ReturnNodeFragment)][
+        argNode = [x for x in self.flow.graph.nodes if isinstance(x, ArgNodeFragment)][
             0
         ]
+        kwargNode = [
+            x for x in self.flow.graph.nodes if isinstance(x, KwargNodeFragment)
+        ][0]
+        returnNode = [
+            x for x in self.flow.graph.nodes if isinstance(x, ReturnNodeFragment)
+        ][0]
 
         participatingNodes = [
             x
-            for x in self.flow.nodes
+            for x in self.flow.graph.nodes
             if isinstance(x, ArkitektNodeFragment)
             or isinstance(x, ReactiveNodeFragment)
         ]

@@ -83,12 +83,11 @@ async def before_spawn(self: BaseAgent, provision: Provision):
 
 
 class FlowActor(Actor):
-
     contracts: Dict[str, ReservationContract] = Field(default_factory=dict)
     flow: Contextual[FlowFragment]
 
     async def on_provide(self, provision: Provision, template: TemplateFragment):
-        print("providing")
+
         self.flow = await aget_flow(id=template.params["flow"])
 
         argNode = [x for x in self.flow.nodes if isinstance(x, ArgNodeFragment)][0]

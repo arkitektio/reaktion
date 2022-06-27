@@ -1,6 +1,11 @@
 import asyncio
-from pydantic import BaseModel
-from fluss.api.schema import FlowNodeFragment
+from typing import Awaitable, Callable
+from pydantic import BaseModel, Field
+from tomlkit import string
+from arkitekt.api.schema import AssignationLogLevel
+from arkitekt.messages import Assignation
+from fluss.api.schema import FlowNodeCommonsFragmentBase
+from rath.scalars import ID
 from reaktion.atoms.errors import AtomQueueFull
 from reaktion.events import InEvent, OutEvent
 import logging
@@ -9,9 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 class Atom(BaseModel):
-    node: FlowNodeFragment
+    node: FlowNodeCommonsFragmentBase
     private_queue: asyncio.Queue[InEvent]
     event_queue: asyncio.Queue[OutEvent]
+    alog: Callable[[str, AssignationLogLevel, str], Awaitable[None]] = Field(
+        exclude=True
+    )
 
     async def run(self):
         raise NotImplementedError("This needs to be implemented")
@@ -26,6 +34,3 @@ class Atom(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         underscore_attrs_are_private = True
-        json_encoders = {
-            asyncio.Queue: lambda q: repr(q),
-        }

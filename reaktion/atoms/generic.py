@@ -15,20 +15,33 @@ class MapAtom(Atom):
             while True:
                 event = await self.private_queue.get()
                 if event.type == EventType.NEXT:
-                    await self.event_queue.put(
-                        OutEvent(
-                            handle="returns",
-                            type=EventType.NEXT,
-                            value=await self.map(event.value),
-                            source=self.node.id,
+                    try:
+                        result = await self.map(event.value)
+                        print("Result:", result)
+                        await self.event_queue.put(
+                            OutEvent(
+                                handle="return_0",
+                                type=EventType.NEXT,
+                                value=result,
+                                source=self.node.id,
+                            )
                         )
-                    )
+                    except Exception as e:
+                        logger.error(f"{self.node.id} map failed")
+                        await self.event_queue.put(
+                            OutEvent(
+                                handle="return_0",
+                                type=EventType.ERROR,
+                                source=self.node.id,
+                                value=e,
+                            )
+                        )
 
                 if event.type == EventType.COMPLETE:
                     # Everything left of us is done, so we can shut down as well
                     await self.event_queue.put(
                         OutEvent(
-                            handle="returns",
+                            handle="return_0",
                             type=EventType.COMPLETE,
                             source=self.node.id,
                         )
@@ -38,7 +51,7 @@ class MapAtom(Atom):
                 if event.type == EventType.ERROR:
                     await self.event_queue.put(
                         OutEvent(
-                            handle="returns",
+                            handle="return_0",
                             type=EventType.ERROR,
                             value=event.value,
                             source=self.node.id,
@@ -64,7 +77,7 @@ class MergeMapAtom(Atom):
                     async for returns in self.merge_map(event.value):
                         await self.event_queue.put(
                             OutEvent(
-                                handle="returns",
+                                handle="return_0",
                                 type=EventType.NEXT,
                                 value=returns,
                                 source=self.node.id,
@@ -75,7 +88,7 @@ class MergeMapAtom(Atom):
                     # Everything left of us is done, so we can shut down as well
                     await self.event_queue.put(
                         OutEvent(
-                            handle="returns",
+                            handle="return_0",
                             type=EventType.COMPLETE,
                             source=self.node.id,
                         )
@@ -85,7 +98,7 @@ class MergeMapAtom(Atom):
                 if event.type == EventType.ERROR:
                     await self.event_queue.put(
                         OutEvent(
-                            handle="returns",
+                            handle="return_0",
                             type=EventType.ERROR,
                             value=event.value,
                             source=self.node.id,
