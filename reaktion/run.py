@@ -30,9 +30,20 @@ from fluss.api.schema import (
 )
 from fluss.arkitekt import ConnectedApp
 from koil.types import Contextual
+from reaktion.utils import infer_type_from_graph
+from reaktion.actor import FlowFuncActor
+from fakts.grants.remote.claim import ClaimGrant
 
-
-app = ConnectedApp(fakts=Fakts(subapp="reaktion"))
+app = ConnectedApp(
+    fakts=Fakts(
+        subapp="reaktion",
+        grant=ClaimGrant(
+            client_id="DSNwVKbSmvKuIUln36FmpWNVE2dfrsd2oRX0ke8PJ",
+            client_secret="Gp3VldiWUmHgKkIxZjL2eoinoeinNwnSyIGHWbQJo6bWMDoIUlBqvUyoGWUWAe6jI3KRXDOsD13gkYVCZR0po1BLFO9QT4lktKODHDs0GyyJEzmIjkpEOItfdCC4zIa3Qzu",
+            scopes=["read", "write"],
+        ),
+    )
+)
 
 
 @app.arkitekt.register()
@@ -51,26 +62,26 @@ async def deploy_graph(
     """
     assert flow.name, "Graph must have a Name in order to be deployed"
 
-    argNode = [x for x in flow.nodes if isinstance(x, ArgNodeFragment)][0]
-    kwargNode = [x for x in flow.nodes if isinstance(x, KwargNodeFragment)][0]
-    returnNode = [x for x in flow.nodes if isinstance(x, ReturnNodeFragment)][0]
+    argNode = [x for x in flow.graph.nodes if isinstance(x, ArgNodeFragment)][0]
+    kwargNode = [x for x in flow.graph.nodes if isinstance(x, KwargNodeFragment)][0]
+    returnNode = [x for x in flow.graph.nodes if isinstance(x, ReturnNodeFragment)][0]
 
-    args = [ArgPortInput(**x.dict()) for x in argNode.args]
-    kwargs = [KwargPortInput(**x.dict()) for x in kwargNode.kwargs]
-    returns = [ReturnPortInput(**x.dict()) for x in returnNode.returns]
+    args = [ArgPortInput(**x.dict()) for x in argNode.instream[0]]
+    kwargs = []
+    returns = [ReturnPortInput(**x.dict()) for x in returnNode.outstream[0]]
 
     node = await adefine(
         DefinitionInput(
             name=flow.name,
             interface=flow.name,
-            type=NodeTypeInput.FUNCTION,
+            type=infer_type_from_graph(flow.graph),
             args=args,
             kwargs=kwargs,
             returns=returns,
         )
     )
 
-    return await acreate_template(node, params={"flow": flow.id})
+    return await acreate_template(node, params={"flow": flow.id}, extensions=["flow"])
 
 
 @app.arkitekt.agent.hook("before_spawn")
@@ -78,45 +89,7 @@ async def before_spawn(self: BaseAgent, provision: Provision):
     if provision.template in self._templateActorBuilderMap:
         return
     else:
-        print("Halloionioni")
-        self._templateActorBuilderMap[provision.template] = FlowActor
-
-
-class FlowActor(Actor):
-    contracts: Dict[str, ReservationContract] = Field(default_factory=dict)
-    flow: Contextual[FlowFragment]
-
-    async def on_provide(self, provision: Provision, template: TemplateFragment):
-
-        self.flow = await aget_flow(id=template.params["flow"])
-
-        argNode = [x for x in self.flow.nodes if isinstance(x, ArgNodeFragment)][0]
-        kwargNode = [x for x in self.flow.nodes if isinstance(x, KwargNodeFragment)][0]
-        returnNode = [x for x in self.flow.nodes if isinstance(x, ReturnNodeFragment)][
-            0
-        ]
-
-        arkitektNodes = [
-            x for x in self.flow.nodes if isinstance(x, ArkitektNodeFragment)
-        ]
-
-        instances = {
-            x.id: await afind(package=x.package, interface=x.interface)
-            for x in arkitektNodes
-        }
-
-        self.contracts = {key: use(value) for key, value in instances.items()}
-
-        for contract in self.contracts.values():
-            await contract.connect()
-
-    async def on_assign(self, assignation: Assignation):
-        print(assignation)
-
-    async def on_unprovide(self):
-
-        for contract in self.contracts.values():
-            await contract.adisconnect()
+        self._templateActorBuilderMap[provision.template] = FlowFuncActor
 
 
 async def main():
