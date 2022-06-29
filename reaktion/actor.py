@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Dict
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from arkitekt.actors.base import Actor
 from arkitekt.actors.functional import AsyncFuncActor
 from arkitekt.api.schema import (
@@ -22,11 +22,19 @@ from fluss.api.schema import (
     KwargNodeFragment,
     ReactiveNodeFragment,
     ReturnNodeFragment,
+    RunMutationStart,
     aget_flow,
+    arun,
+    arunlog,
+    asnapshot,
 )
 from reaktion.events import EventType, OutEvent
 from reaktion.utils import connected_events
 from reaktion.atoms.utils import atomify
+
+
+class NodeState(BaseModel):
+    latestevent: OutEvent
 
 
 class FlowFuncActor(AsyncFuncActor):
@@ -34,6 +42,11 @@ class FlowFuncActor(AsyncFuncActor):
     flow: Contextual[FlowFragment]
     expand_inputs: bool = False
     shrink_outputs: bool = False
+
+    run_states: Dict[
+        str,
+        Dict[str, NodeState],
+    ] = Field(default_factory=dict)
 
     async def on_provide(self, provision: ProvisionFragment):
 
@@ -67,7 +80,24 @@ class FlowFuncActor(AsyncFuncActor):
 
         await self.aprov_log("Started")
 
+    async def update_state(self, run: RunMutationStart, event: OutEvent):
+        if run.id not in self.run_states:
+            self.run_states[run.id] = {}
+
+        self.run_states[run.id][event.source] = event.to_state()
+
+    async def push_state(self, run: RunMutationStart):
+        print(self.run_states[run.id])
+        try:
+            await asnapshot(run, self.run_states[run.id])
+
+        except:
+            logging.exception("Failed to push state", exc_info=True)
+        print("OINAOSINDOASINDOASINDOASINDOISNADOASNd")
+
     async def on_assign(self, assignation: Assignation):
+
+        run = await arun(assignation=assignation.id, flow=self.flow)
 
         await self.aass_log(assignation.assignation, "Starting")
         try:
@@ -125,15 +155,22 @@ class FlowFuncActor(AsyncFuncActor):
             print("Starting Workflow")
 
             complete = False
+            i = 0
 
             while not complete:
                 event = await event_queue.get()
+                await self.aass_log(assignation.assignation, f"Received Event {event}")
+                await self.update_state(run, event)
+
                 if self.flow.brittle:
                     print("FLOOOWSS BRITTTLEEE MAN")
                     if event.type == EventType.ERROR:
                         raise event.value
 
-                await self.aass_log(assignation.assignation, f"Received Event {event}")
+                if i == 2:
+                    await self.push_state(run)
+                    i = 0
+
                 spawned_events = connected_events(self.flow.graph, event)
 
                 for spawned_event in spawned_events:
@@ -173,6 +210,8 @@ class FlowFuncActor(AsyncFuncActor):
             )
 
         except Exception as e:
+
+            await self.push_state(run)
             await self.aass_log(
                 assignation.assignation, message=repr(e), level=AssignationStatus.ERROR
             )

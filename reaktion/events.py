@@ -40,5 +40,13 @@ class OutEvent(BaseModel):
     )
     """ The attached value of the event"""
 
+    def to_state(self):
+        return {
+            "source": self.source,
+            "handle": self.handle,
+            "type": self.type,
+            "value": str(self.value),
+        }
+
     class Config:
         arbitrary_types_allowed = True
