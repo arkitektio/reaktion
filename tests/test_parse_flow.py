@@ -1,4 +1,5 @@
 import asyncio
+import pytest
 import yaml
 from arkitekt.api.schema import NodeType
 from arkitekt.postmans.utils import mockuse
@@ -26,6 +27,7 @@ class MockReserve(Reserve):
     type: NodeType
 
 
+@pytest.mark.integration
 def test_create_flow():
 
     with open(build_relative("flows/get_flow.yaml"), "r") as f:
@@ -42,6 +44,7 @@ async def ass_log(assignation, level, message):
     logging.info(f"{assignation}, {message}")
 
 
+@pytest.mark.integration
 async def test_parse_flow():
 
     with open(build_relative("flows/get_flow.yaml"), "r") as f:
