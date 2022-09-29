@@ -1,15 +1,15 @@
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 from prometheus_client import Enum
 from pydantic import BaseModel, Field
 
 
 class EventType(str, Enum):
-    NEXT = "next"
-    ERROR = "error"
-    COMPLETE = "complete"
+    NEXT = "NEXT"
+    ERROR = "ERROR"
+    COMPLETE = "COMPLETE"
 
 
-Returns = Tuple
+Returns = List
 
 
 class InEvent(BaseModel):

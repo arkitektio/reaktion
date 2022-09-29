@@ -3,17 +3,21 @@ import logging
 from typing import Dict
 
 from pydantic import BaseModel, Field
-from arkitekt.actors.base import Actor
-from arkitekt.actors.functional import AsyncFuncActor
-from arkitekt.api.schema import (
+from rekuest.actors.base import Actor
+from rekuest.actors.functional import AsyncFuncActor, AsyncGenActor
+from rekuest.api.schema import (
     AssignationLogLevel,
     AssignationStatus,
+    NodeKind,
     ProvisionFragment,
+    ProvisionStatus,
+    ReservationFragment,
+    ReservationStatus,
     TemplateFragment,
     afind,
 )
-from arkitekt.messages import Assignation, Provision
-from arkitekt.postmans.utils import ReservationContract, use
+from rekuest.messages import Assignation, Provision
+from rekuest.postmans.utils import ReservationContract, use
 from koil.types import Contextual
 from fluss.api.schema import (
     ArgNodeFragment,
@@ -27,30 +31,40 @@ from fluss.api.schema import (
     arun,
     arunlog,
     asnapshot,
+    atrack,
 )
 from reaktion.events import EventType, OutEvent
 from reaktion.utils import connected_events
 from reaktion.atoms.utils import atomify
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class NodeState(BaseModel):
     latestevent: OutEvent
 
 
-class FlowFuncActor(AsyncFuncActor):
+class FlowActor(Actor):
     contracts: Dict[str, ReservationContract] = Field(default_factory=dict)
     flow: Contextual[FlowFragment]
     expand_inputs: bool = False
     shrink_outputs: bool = False
+    provided = False
+    is_generator: bool = False
 
     run_states: Dict[
         str,
         Dict[str, NodeState],
     ] = Field(default_factory=dict)
 
-    async def on_provide(self, provision: ProvisionFragment):
+    reservation_state: Dict[str, ReservationFragment] = Field(default_factory=dict)
+    _lock = None
 
+    async def on_provide(self, provision: ProvisionFragment):
+        self._lock = asyncio.Lock()
         self.flow = await aget_flow(id=self.provision.template.params["flow"])
+        self.is_generator = self.provision.template.node.kind == NodeKind.GENERATOR
 
         argNode = [x for x in self.flow.graph.nodes if isinstance(x, ArgNodeFragment)][
             0
@@ -66,46 +80,58 @@ class FlowFuncActor(AsyncFuncActor):
             x for x in self.flow.graph.nodes if isinstance(x, ArkitektNodeFragment)
         ]
 
-        instances = {
-            x.id: await afind(package=x.package, interface=x.interface)
+        self.contracts = {
+            x.id: use(
+                node=await afind(package=x.package, interface=x.interface),
+                provision=provision.id,
+                reference=x.id,
+                expand_outputs=False,
+                shrink_inputs=False,
+                on_reservation_change=self.on_reservation_change,
+            )
             for x in arkitektNodes
         }
 
-        self.contracts = {key: use(node=value) for key, value in instances.items()}
-
         await self.aprov_log("Entering")
 
-        for contract in self.contracts.values():
-            await contract.aenter()
+        futures = [contract.aenter() for contract in self.contracts.values()]
+        await asyncio.gather(*futures)
 
+        self.provided = True
         await self.aprov_log("Started")
 
-    async def update_state(self, run: RunMutationStart, event: OutEvent):
-        if run.id not in self.run_states:
-            self.run_states[run.id] = {}
+    async def on_reservation_change(self, res: ReservationFragment):
+        async with self._lock:
+            self.reservation_state[res.reference] = res
 
-        self.run_states[run.id][event.source] = event.to_state()
-
-    async def push_state(self, run: RunMutationStart):
-        print(self.run_states[run.id])
-        try:
-            await asnapshot(run, self.run_states[run.id])
-
-        except:
-            logging.exception("Failed to push state", exc_info=True)
-        print("OINAOSINDOASINDOASINDOASINDOISNADOASNd")
+            unactive_reservations = [
+                res
+                for res in self.reservation_state.values()
+                if res.status != ReservationStatus.ACTIVE
+            ]
+            if self.provided:
+                if len(unactive_reservations) > 0:
+                    await self.transport.change_provision(
+                        self.provision.id,
+                        status=ProvisionStatus.CRITICAL,
+                    )
+                else:
+                    await self.transport.change_provision(
+                        self.provision.id,
+                        status=ProvisionStatus.ACTIVE,
+                    )
 
     async def on_assign(self, assignation: Assignation):
 
-        run = await arun(assignation=assignation.id, flow=self.flow)
+        run = await arun(assignation=assignation.assignation, flow=self.flow)
 
         await self.aass_log(assignation.assignation, "Starting")
-        try:
-            await self.transport.change_assignation(
-                assignation.assignation,
-                status=AssignationStatus.ASSIGNED,
-            )
 
+        t = 0
+        state = {}
+        await asnapshot(run=run, events=list(state.values()), t=t)
+
+        try:
             event_queue = asyncio.Queue()
 
             argNode = [
@@ -132,86 +158,128 @@ class FlowFuncActor(AsyncFuncActor):
                 logging.info(f"{assignation}, {message}")
 
             atoms = {
-                x.id: atomify(x, event_queue, self.contracts, alog=ass_log)
+                x.id: atomify(x, event_queue, self.contracts, assignation, alog=ass_log)
                 for x in participatingNodes
             }
 
             await self.aass_log(assignation.assignation, "Atomification complete")
 
-            tasks = [asyncio.create_task(atom.run()) for atom in atoms.values()]
+            tasks = [asyncio.create_task(atom.start()) for atom in atoms.values()]
 
-            initial_event = OutEvent(
-                handle="return_0",
-                type=EventType.NEXT,
-                source=argNode.id,
-                value=assignation.args,
-            )
-            initial_done_event = OutEvent(
-                handle="return_0", type=EventType.COMPLETE, source=argNode.id
-            )
+            for index, stream in enumerate(argNode.outstream):
+                print(stream)
+                if len(stream) > 0:
+                    value = (assignation.args[index],)  # empty stream are ommited
+                else:
+                    value = tuple()
 
-            await event_queue.put(initial_event)
-            await event_queue.put(initial_done_event)
-            print("Starting Workflow")
+                initial_event = OutEvent(
+                    handle=f"return_{index}",
+                    type=EventType.NEXT,
+                    source=argNode.id,
+                    value=value,
+                )
+                initial_done_event = OutEvent(
+                    handle=f"return_{index}",
+                    type=EventType.COMPLETE,
+                    source=argNode.id,
+                )
+
+                await event_queue.put(initial_event)
+                await event_queue.put(initial_done_event)
 
             complete = False
-            i = 0
+
+            returns = []
 
             while not complete:
-                event = await event_queue.get()
-                await self.aass_log(assignation.assignation, f"Received Event {event}")
-                await self.update_state(run, event)
+                event: OutEvent = await event_queue.get()
+                event_queue.task_done()
 
                 if self.flow.brittle:
-                    print("FLOOOWSS BRITTTLEEE MAN")
                     if event.type == EventType.ERROR:
                         raise event.value
 
-                if i == 2:
-                    await self.push_state(run)
-                    i = 0
+                track = await atrack(
+                    run=run,
+                    source=event.source,
+                    handle=event.handle,
+                    value=[str(i) for i in list(event.value)]
+                    if event.value and not isinstance(event.value, Exception)
+                    else event.value,
+                    type=event.type,
+                    t=t,
+                )
+                state[event.source] = track.id
+
+                t += 1
+
+                if t % 3 == 0:
+                    await asnapshot(run=run, events=list(state.values()), t=t)
 
                 spawned_events = connected_events(self.flow.graph, event)
 
                 for spawned_event in spawned_events:
-                    print("->", spawned_event)
+                    logger.info(f"-> {spawned_event}")
 
                     if spawned_event.target == returnNode.id:
 
                         if spawned_event.type == EventType.NEXT:
-                            print("Setting result")
                             returns = spawned_event.value
-                            continue
+                            if self.is_generator:
+                                await self.transport.change_assignation(
+                                    assignation.assignation,
+                                    status=AssignationStatus.YIELD,
+                                    returns=returns,
+                                )
 
                         if spawned_event.type == EventType.ERROR:
                             raise spawned_event.value
 
                         if spawned_event.type == EventType.COMPLETE:
-                            print("Going out?")
                             complete = True
-                            continue
+                            if not self.is_generator:
+                                await self.transport.change_assignation(
+                                    assignation.assignation,
+                                    status=AssignationStatus.RETURNED,
+                                    returns=returns,
+                                )
+                            else:
+                                await self.transport.change_assignation(
+                                    assignation.assignation,
+                                    status=AssignationStatus.DONE,
+                                )
 
-                    assert (
-                        spawned_event.target in atoms
-                    ), "Unknown target. Your flow is connected wrong"
-                    if spawned_event.target in atoms:
-                        await atoms[spawned_event.target].put(spawned_event)
+                    else:
+                        assert (
+                            spawned_event.target in atoms
+                        ), "Unknown target. Your flow is connected wrong"
+                        if spawned_event.target in atoms:
+                            await atoms[spawned_event.target].put(spawned_event)
 
-            for tasks in tasks:
-                tasks.cancel()
+            for task in tasks:
+                task.cancel()
 
-            await asyncio.gather(*tasks)
+            await asyncio.gather(*tasks, return_exceptions=True)
 
-            await self.aass_log(assignation.assignation, "Finished")
+        except asyncio.CancelledError as e:
+
+            for task in tasks:
+                task.cancel()
+
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True), timeout=4
+                )
+            except asyncio.TimeoutError:
+                pass
+
             await self.transport.change_assignation(
-                assignation.assignation,
-                status=AssignationStatus.RETURNED,
-                returns=returns,
+                assignation.assignation, status=AssignationStatus.CANCELLED
             )
 
         except Exception as e:
 
-            await self.push_state(run)
             await self.aass_log(
                 assignation.assignation, message=repr(e), level=AssignationStatus.ERROR
             )
@@ -224,4 +292,4 @@ class FlowFuncActor(AsyncFuncActor):
     async def on_unprovide(self):
 
         for contract in self.contracts.values():
-            await contract.adisconnect()
+            await contract.aexit()

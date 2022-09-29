@@ -14,15 +14,23 @@ class MapAtom(Atom):
         try:
             while True:
                 event = await self.private_queue.get()
+
                 if event.type == EventType.NEXT:
                     try:
                         result = await self.map(event.value)
                         print("Result:", result)
+                        if result is None:
+                            value = ()
+                        elif isinstance(result, list) or isinstance(result, tuple):
+                            value = result
+                        else:
+                            value = (result,)
+
                         await self.event_queue.put(
                             OutEvent(
                                 handle="return_0",
                                 type=EventType.NEXT,
-                                value=result,
+                                value=value,
                                 source=self.node.id,
                             )
                         )
@@ -36,6 +44,7 @@ class MapAtom(Atom):
                                 value=e,
                             )
                         )
+                        break
 
                 if event.type == EventType.COMPLETE:
                     # Everything left of us is done, so we can shut down as well
@@ -57,6 +66,7 @@ class MapAtom(Atom):
                             source=self.node.id,
                         )
                     )
+                    break
                     # We are not raising the exception here but monadicly killing it to the
                     # left
         except asyncio.CancelledError as e:
@@ -72,17 +82,35 @@ class MergeMapAtom(Atom):
         try:
             while True:
                 event = await self.private_queue.get()
-                if event.type == EventType.NEXT:
 
-                    async for returns in self.merge_map(event.value):
+                if event.type == EventType.NEXT:
+                    try:
+                        async for result in self.merge_map(event.value):
+                            if result is None:
+                                value = ()
+                            elif isinstance(result, list) or isinstance(result, tuple):
+                                value = result
+                            else:
+                                value = (result,)
+                            await self.event_queue.put(
+                                OutEvent(
+                                    handle="return_0",
+                                    type=EventType.NEXT,
+                                    value=value,
+                                    source=self.node.id,
+                                )
+                            )
+                    except Exception as e:
+                        logger.error(f"{self.node.id} map failed")
                         await self.event_queue.put(
                             OutEvent(
                                 handle="return_0",
-                                type=EventType.NEXT,
-                                value=returns,
+                                type=EventType.ERROR,
                                 source=self.node.id,
+                                value=e,
                             )
                         )
+                        break
 
                 if event.type == EventType.COMPLETE:
                     # Everything left of us is done, so we can shut down as well
@@ -104,6 +132,7 @@ class MergeMapAtom(Atom):
                             source=self.node.id,
                         )
                     )
+                    break
                     # We are not raising the exception here but monadicly killing it to the
                     # left
         except asyncio.CancelledError as e:

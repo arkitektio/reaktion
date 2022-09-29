@@ -1,38 +1,50 @@
 import asyncio
-from typing import Dict
-from arkitekt.postmans.utils import use
+from lib2to3.pytree import Base
+from typing import Dict, Tuple
+from reaktion.agent import ReaktionAgent
+from rekuest.agents.errors import ProvisionException
+
+from rekuest.agents.stateful import StatefulAgent
+from rekuest.contrib.fakts.websocket_agent_transport import FaktsWebsocketAgentTransport
+from rekuest.postmans.utils import use
 from pydantic import Field
-from arkitekt.actors.base import Actor
-from arkitekt.agents.base import BaseAgent
-from arkitekt.api.schema import (
+from rekuest.actors.base import Actor
+from rekuest.agents.base import BaseAgent
+from rekuest.api.schema import (
     ArgPortInput,
     DefinitionInput,
-    KwargPortInput,
-    NodeTypeInput,
+    NodeFragment,
+    NodeKind,
     ReturnPortInput,
     TemplateFragment,
     acreate_template,
     adefine,
+    adelete_node,
     afind,
+    aget_provision,
+    get_template,
 )
-from arkitekt.messages import Assignation, Provision
-from arkitekt.postmans.utils import ReservationContract
+from rekuest.messages import Assignation, Provision
+from rekuest.postmans.utils import ReservationContract
 from fakts.fakts import Fakts
 from fluss.api.schema import (
     ArgNodeFragment,
-    ArkitektNodeFragment,
     FlowFragment,
-    FlowNodeFragment,
     KwargNodeFragment,
     ReturnNodeFragment,
-    aget_flow,
-    flow,
 )
-from fluss.arkitekt import ConnectedApp
+from rekuest.widgets import SliderWidget, StringWidget
+from arkitekt.apps.fluss import FlussApp
+from arkitekt.apps.rekuest import ArkitektRekuest, RekuestApp
 from koil.types import Contextual
-from reaktion.utils import infer_type_from_graph
-from reaktion.actor import FlowFuncActor
+from reaktion.utils import infer_kind_from_graph
+from reaktion.actor import FlowActor
 from fakts.grants.remote.claim import ClaimGrant
+
+
+class ConnectedApp(FlussApp, RekuestApp):
+    pass
+
 
 app = ConnectedApp(
     fakts=Fakts(
@@ -42,23 +54,32 @@ app = ConnectedApp(
             client_secret="Gp3VldiWUmHgKkIxZjL2eoinoeinNwnSyIGHWbQJo6bWMDoIUlBqvUyoGWUWAe6jI3KRXDOsD13gkYVCZR0po1BLFO9QT4lktKODHDs0GyyJEzmIjkpEOItfdCC4zIa3Qzu",
             scopes=["read", "write"],
         ),
-    )
+    ),
+    rekuest=ArkitektRekuest(
+        agent=ReaktionAgent(
+            transport=FaktsWebsocketAgentTransport(fakts_group="arkitekt.agent")
+        )
+    ),
 )
 
 
-@app.arkitekt.register()
+@app.rekuest.register(widgets={"description": StringWidget(as_paragraph=True)})
 async def deploy_graph(
     flow: FlowFragment,
-) -> TemplateFragment:
+    name: str = None,
+    description: str = None,
+) -> Tuple[NodeFragment, TemplateFragment]:
     """Deploy Flow
 
     Deploys a Flow as a Template
 
     Args:
         graph (FlowFragment): The Flow
+        name (str, optional): The name of this Incarnation
+        description (str, optional): The name of this Incarnation
 
     Returns:
-        TemplateFragment: The Template
+        NodeFragment, TemplateFragment: The Node, The Template
     """
     assert flow.name, "Graph must have a Name in order to be deployed"
 
@@ -66,35 +87,70 @@ async def deploy_graph(
     kwargNode = [x for x in flow.graph.nodes if isinstance(x, KwargNodeFragment)][0]
     returnNode = [x for x in flow.graph.nodes if isinstance(x, ReturnNodeFragment)][0]
 
-    args = [ArgPortInput(**x.dict()) for x in argNode.instream[0]]
-    kwargs = []
-    returns = [ReturnPortInput(**x.dict()) for x in returnNode.outstream[0]]
+    args = [ArgPortInput(**x.dict()) for x in flow.graph.args]
+    returns = [ReturnPortInput(**x.dict()) for x in flow.graph.returns]
 
     node = await adefine(
         DefinitionInput(
-            name=flow.name,
-            interface=flow.name,
-            type=infer_type_from_graph(flow.graph),
+            name=name or flow.diagram.name,
+            interface=f"flow-{flow.id}",
+            kind=infer_kind_from_graph(flow.graph),
             args=args,
-            kwargs=kwargs,
             returns=returns,
+            description=description,
+            meta={"flow": flow.id},
+            interfaces=["workflow", f"diagram:{flow.diagram.id}", f"flow:{flow.id}"],
         )
     )
 
-    return await acreate_template(node, params={"flow": flow.id}, extensions=["flow"])
+    return node, await acreate_template(
+        node, params={"flow": flow.id}, extensions=["flow"]
+    )
 
 
-@app.arkitekt.agent.hook("before_spawn")
-async def before_spawn(self: BaseAgent, provision: Provision):
-    if provision.template in self._templateActorBuilderMap:
-        return
-    else:
-        self._templateActorBuilderMap[provision.template] = FlowFuncActor
+@app.rekuest.register()
+async def undeploy_graph(
+    flow: FlowFragment,
+):
+    """Undeploy Flow
+
+    Undeploys graph, no user will be able to reserve this graph anymore
+
+    Args:
+        graph (FlowFragment): The Flow
+
+    """
+    assert flow.name, "Graph must have a Name in order to be deployed"
+
+    x = await afind(interface=flow.hash)
+
+    await adelete_node(x)
+    return None
+
+
+@app.rekuest.register(widgets={"interval": SliderWidget(min=0, max=100)})
+async def timer(interval: int = 4) -> int:
+    """Timer
+
+    A simple timer that prints the current time every interval seconds
+
+    Args:
+        interval (int, optional): The interval in seconds. Defaults to 4.
+
+    Returns:
+        int: The current interval (iteration)
+
+    """
+    i = 0
+    while True:
+        i += 1
+        yield i
+        await asyncio.sleep(interval)
 
 
 async def main():
     async with app:
-        await app.arkitekt.run()
+        await app.rekuest.run()
 
 
 if __name__ == "__main__":

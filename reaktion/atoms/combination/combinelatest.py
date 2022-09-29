@@ -2,6 +2,7 @@ import asyncio
 from typing import List, Tuple
 import uuid
 from rekuest.api.schema import AssignationLogLevel
+from rekuest.messages import Assignation
 from reaktion.atoms.combination.base import CombinationAtom
 from reaktion.events import EventType, OutEvent, Returns
 import logging
@@ -9,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class ZipAtom(CombinationAtom):
+class CombineLatestAtom(CombinationAtom):
     state: List[Returns] = [None, None]
     complete: Tuple[bool, bool] = (False, False)
 
@@ -58,6 +59,7 @@ class ZipAtom(CombinationAtom):
                     break  # Everything left of us is done, so we can shut down as well
 
                 if self.state[0] is not None and self.state[1] is not None:
+
                     await self.event_queue.put(
                         OutEvent(
                             handle="return_0",

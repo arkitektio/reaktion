@@ -1,11 +1,6 @@
 import json
 import pytest
-from fakts.discovery.static import StaticDiscovery
-from fakts.fakts import Fakts
-from fakts.grants.remote.claim import ClaimGrant
-from fluss.arkitekt import ConnectedApp
-from herre.fakts.herre import FaktsHerre
-from fluss.api.schema import GraphInput, get_flow, draw
+from fluss.api.schema import GraphInput, get_flow
 import yaml
 from .utils import build_relative
 
@@ -14,7 +9,13 @@ from .utils import build_relative
 @pytest.fixture
 def app():
 
-    return ConnectedApp(
+    from arkitekt.apps.fluss import FlussApp
+    from fakts.discovery.static import StaticDiscovery
+    from fakts.fakts import Fakts
+    from fakts.grants.remote.claim import ClaimGrant
+    from herre.fakts.herre import FaktsHerre
+
+    return FlussApp(
         fakts=Fakts(
             grant=ClaimGrant(
                 client_id="DSNwVKbSmvKuIUln36FmpWNVE2KrbS2oRX0ke8PJ",
@@ -47,5 +48,3 @@ def test_create_flow(app):
         print(g)
         t = GraphInput(**g)
         print(t)
-
-        l = draw(name="test_flow", graph=t)

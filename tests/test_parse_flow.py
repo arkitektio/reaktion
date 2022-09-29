@@ -1,9 +1,9 @@
 import asyncio
 import pytest
 import yaml
-from arkitekt.api.schema import NodeType
-from arkitekt.postmans.utils import mockuse
-from arkitekt.traits.node import Reserve
+from rekuest.api.schema import NodeKind
+from rekuest.postmans.utils import mockuse
+from rekuest.traits.node import Reserve
 
 from fluss.api.schema import (
     ArgNodeFragment,
@@ -24,7 +24,7 @@ import logging
 class MockReserve(Reserve):
     package: str
     interface: str
-    type: NodeType
+    type: NodeKind
 
 
 @pytest.mark.integration
@@ -100,7 +100,7 @@ async def test_parse_flow():
 
     while not_complete:
         event = await event_queue.get()
-        print("Received event", event)
+        logger.info("Received event", event)
         spawned_events = connected_events(t, event)
 
         for spawned_event in spawned_events:
