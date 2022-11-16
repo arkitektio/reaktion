@@ -82,7 +82,7 @@ class FlowActor(Actor):
 
         self.contracts = {
             x.id: use(
-                node=await afind(package=x.package, interface=x.interface),
+                node=await afind(hash=x.hash),
                 provision=provision.id,
                 reference=x.id,
                 expand_outputs=False,

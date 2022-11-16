@@ -1,6 +1,6 @@
 from typing import List, Tuple, Union
-from prometheus_client import Enum
 from pydantic import BaseModel, Field
+from enum import Enum
 
 
 class EventType(str, Enum):

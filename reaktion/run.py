@@ -18,7 +18,6 @@ from rekuest.api.schema import (
     ReturnPortInput,
     TemplateFragment,
     acreate_template,
-    adefine,
     adelete_node,
     afind,
     aget_provision,
@@ -40,6 +39,7 @@ from koil.types import Contextual
 from reaktion.utils import infer_kind_from_graph
 from reaktion.actor import FlowActor
 from fakts.grants.remote.claim import ClaimGrant
+from fakts.grants.remote.claimprivate import ClaimPrivateGrant
 
 
 class ConnectedApp(FlussApp, RekuestApp):
@@ -49,26 +49,29 @@ class ConnectedApp(FlussApp, RekuestApp):
 app = ConnectedApp(
     fakts=Fakts(
         subapp="reaktion",
-        grant=ClaimGrant(
-            client_id="DSNwVKbSmvKuIUln36FmpWNVE2dfrsd2oRX0ke8PJ",
-            client_secret="Gp3VldiWUmHgKkIxZjL2eoinoeinNwnSyIGHWbQJo6bWMDoIUlBqvUyoGWUWAe6jI3KRXDOsD13gkYVCZR0po1BLFO9QT4lktKODHDs0GyyJEzmIjkpEOItfdCC4zIa3Qzu",
-            scopes=["read", "write"],
+        grant=ClaimPrivateGrant(
+            client_id="sdfsdfesegfsefsefef",
+            client_secret="Gp3VldiWUmHgKkIxZjL2aEjVmNwnSyIGHWbQJo6bWMDoIUlBqvUyoGWUWAe6jI3KRXDOsD13gkYVCZR0po1BLFO9QT4lktKODHDs0GyyJEzmIjkpEOItfdCC4zIa3Qzu",
         ),
+        force_refresh=True,
     ),
     rekuest=ArkitektRekuest(
         agent=ReaktionAgent(
-            transport=FaktsWebsocketAgentTransport(fakts_group="arkitekt.agent")
+            transport=FaktsWebsocketAgentTransport(fakts_group="rekuest.agent")
         )
     ),
 )
 
 
-@app.rekuest.register(widgets={"description": StringWidget(as_paragraph=True)})
+@app.rekuest.register(
+    widgets={"description": StringWidget(as_paragraph=True)},
+    interfaces=["fluss:deploy"],
+)
 async def deploy_graph(
     flow: FlowFragment,
     name: str = None,
     description: str = None,
-) -> Tuple[NodeFragment, TemplateFragment]:
+) -> TemplateFragment:
     """Deploy Flow
 
     Deploys a Flow as a Template
@@ -79,7 +82,7 @@ async def deploy_graph(
         description (str, optional): The name of this Incarnation
 
     Returns:
-        NodeFragment, TemplateFragment: The Node, The Template
+        TemplateFragment: The created template
     """
     assert flow.name, "Graph must have a Name in order to be deployed"
 
@@ -90,22 +93,22 @@ async def deploy_graph(
     args = [ArgPortInput(**x.dict()) for x in flow.graph.args]
     returns = [ReturnPortInput(**x.dict()) for x in flow.graph.returns]
 
-    node = await adefine(
+    template = await acreate_template(
         DefinitionInput(
-            name=name or flow.diagram.name,
+            name=name or flow.workspace.name,
             interface=f"flow-{flow.id}",
             kind=infer_kind_from_graph(flow.graph),
             args=args,
             returns=returns,
             description=description,
             meta={"flow": flow.id},
-            interfaces=["workflow", f"diagram:{flow.diagram.id}", f"flow:{flow.id}"],
-        )
+            interfaces=["workflow", f"diagram:{flow.workspace.id}", f"flow:{flow.id}"],
+        ),
+        params={"flow": flow.id},
+        extensions=["flow"],
     )
 
-    return node, await acreate_template(
-        node, params={"flow": flow.id}, extensions=["flow"]
-    )
+    return template
 
 
 @app.rekuest.register()
