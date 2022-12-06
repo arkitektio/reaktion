@@ -6,7 +6,7 @@ from rekuest.agents.errors import ProvisionException
 
 from rekuest.agents.stateful import StatefulAgent
 from rekuest.contrib.fakts.websocket_agent_transport import FaktsWebsocketAgentTransport
-from rekuest.postmans.utils import use
+from rekuest.postmans.utils import arkiuse
 from pydantic import Field
 from rekuest.actors.base import Actor
 from rekuest.agents.base import BaseAgent
@@ -34,26 +34,49 @@ from fluss.api.schema import (
 )
 from rekuest.widgets import SliderWidget, StringWidget
 from arkitekt.apps.fluss import FlussApp
+from arkitekt.apps.unlok import UnlokApp
 from arkitekt.apps.rekuest import ArkitektRekuest, RekuestApp
-from koil.types import Contextual
 from reaktion.utils import infer_kind_from_graph
-from reaktion.actor import FlowActor
-from fakts.grants.remote.claim import ClaimGrant
-from fakts.grants.remote.claimprivate import ClaimPrivateGrant
+from arkitekt.apps import Arkitekt
+from fakts.grants.remote.device_code import DeviceCodeGrant
+from fakts.fakts import Fakts
+from fakts.grants import CacheGrant
+from herre.grants import CacheGrant as HerreCacheGrant
+from herre.grants.oauth2.refresh import RefreshGrant
+from herre.grants.fakts import FaktsGrant
+from fakts.discovery import StaticDiscovery
+from herre import Herre
+from arkitekt.apps.fluss import ConnectedFluss
+import logging
+from rich.logging import RichHandler
 
 
-class ConnectedApp(FlussApp, RekuestApp):
+class ConnectedApp(FlussApp, RekuestApp, UnlokApp):
     pass
 
 
+identifier = "fluss"
+version = "latest"
+url = "http://localhost:8000/f/"
+
 app = ConnectedApp(
     fakts=Fakts(
-        subapp="reaktion",
-        grant=ClaimPrivateGrant(
-            client_id="sdfsdfesegfsefsefef",
-            client_secret="Gp3VldiWUmHgKkIxZjL2aEjVmNwnSyIGHWbQJo6bWMDoIUlBqvUyoGWUWAe6jI3KRXDOsD13gkYVCZR0po1BLFO9QT4lktKODHDs0GyyJEzmIjkpEOItfdCC4zIa3Qzu",
+        grant=CacheGrant(
+            cache_file=f"{identifier}-{version}_cache.json",
+            hash=f"{identifier}-{version}-{url}",
+            grant=DeviceCodeGrant(
+                identifier=identifier,
+                version=version,
+                discovery=StaticDiscovery(base_url=url),
+            ),
+        )
+    ),
+    herre=Herre(
+        grant=HerreCacheGrant(
+            cache_file=f"{identifier}-{version}_herre_cache.json",
+            hash=f"{identifier}-{version}-{url}",
+            grant=RefreshGrant(grant=FaktsGrant()),
         ),
-        force_refresh=True,
     ),
     rekuest=ArkitektRekuest(
         agent=ReaktionAgent(
@@ -85,10 +108,6 @@ async def deploy_graph(
         TemplateFragment: The created template
     """
     assert flow.name, "Graph must have a Name in order to be deployed"
-
-    argNode = [x for x in flow.graph.nodes if isinstance(x, ArgNodeFragment)][0]
-    kwargNode = [x for x in flow.graph.nodes if isinstance(x, KwargNodeFragment)][0]
-    returnNode = [x for x in flow.graph.nodes if isinstance(x, ReturnNodeFragment)][0]
 
     args = [ArgPortInput(**x.dict()) for x in flow.graph.args]
     returns = [ReturnPortInput(**x.dict()) for x in flow.graph.returns]

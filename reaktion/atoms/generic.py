@@ -13,7 +13,7 @@ class MapAtom(Atom):
     async def run(self):
         try:
             while True:
-                event = await self.private_queue.get()
+                event = await self.get()
 
                 if event.type == EventType.NEXT:
                     try:
@@ -26,7 +26,7 @@ class MapAtom(Atom):
                         else:
                             value = (result,)
 
-                        await self.event_queue.put(
+                        await self.transport.put(
                             OutEvent(
                                 handle="return_0",
                                 type=EventType.NEXT,
@@ -36,7 +36,7 @@ class MapAtom(Atom):
                         )
                     except Exception as e:
                         logger.error(f"{self.node.id} map failed")
-                        await self.event_queue.put(
+                        await self.transport.put(
                             OutEvent(
                                 handle="return_0",
                                 type=EventType.ERROR,
@@ -48,7 +48,7 @@ class MapAtom(Atom):
 
                 if event.type == EventType.COMPLETE:
                     # Everything left of us is done, so we can shut down as well
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.COMPLETE,
@@ -58,7 +58,7 @@ class MapAtom(Atom):
                     break  # Everything left of us is done, so we can shut down as well
 
                 if event.type == EventType.ERROR:
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.ERROR,
@@ -81,7 +81,7 @@ class MergeMapAtom(Atom):
     async def run(self):
         try:
             while True:
-                event = await self.private_queue.get()
+                event = await self.get()
 
                 if event.type == EventType.NEXT:
                     try:
@@ -92,7 +92,7 @@ class MergeMapAtom(Atom):
                                 value = result
                             else:
                                 value = (result,)
-                            await self.event_queue.put(
+                            await self.transport.put(
                                 OutEvent(
                                     handle="return_0",
                                     type=EventType.NEXT,
@@ -102,7 +102,7 @@ class MergeMapAtom(Atom):
                             )
                     except Exception as e:
                         logger.error(f"{self.node.id} map failed")
-                        await self.event_queue.put(
+                        await self.transport.put(
                             OutEvent(
                                 handle="return_0",
                                 type=EventType.ERROR,
@@ -114,7 +114,7 @@ class MergeMapAtom(Atom):
 
                 if event.type == EventType.COMPLETE:
                     # Everything left of us is done, so we can shut down as well
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.COMPLETE,
@@ -124,7 +124,7 @@ class MergeMapAtom(Atom):
                     break  # Everything left of us is done, so we can shut down as well
 
                 if event.type == EventType.ERROR:
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.ERROR,

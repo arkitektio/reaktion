@@ -1,5 +1,5 @@
-from reaktion.atoms.base import Atom
+from reaktion.atoms.reactive import ReactiveAtom
 
 
-class CombinationAtom(Atom):
+class CombinationAtom(ReactiveAtom):
     pass

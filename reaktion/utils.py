@@ -8,19 +8,29 @@ from fluss.api.schema import (
     ReactiveImplementationModelInput,
 )
 from .events import OutEvent, InEvent
+import pydantic
+from .errors import FlowLogicError
 
 
 def connected_events(graph: FlowFragmentGraph, event: OutEvent) -> List[InEvent]:
-    return [
-        InEvent(
-            target=edge.target,
-            handle=edge.target_handle,
-            type=event.type,
-            value=event.value,
-        )
-        for edge in graph.edges
-        if edge.source == event.source and edge.source_handle == event.handle
-    ]
+
+    events = []
+
+    for edge in graph.edges:
+        if edge.source == event.source and edge.source_handle == event.handle:
+            try:
+                events.append(
+                    InEvent(
+                        target=edge.target,
+                        handle=edge.target_handle,
+                        type=event.type,
+                        value=event.value,
+                    )
+                )
+            except pydantic.ValidationError as e:
+                raise FlowLogicError(f"Invalid event for {edge} : {event}") from e
+
+    return events
 
 
 def infer_kind_from_graph(graph: FlowFragmentGraph) -> NodeKindInput:

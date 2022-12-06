@@ -16,10 +16,10 @@ class ZipAtom(CombinationAtom):
     async def run(self):
         try:
             while True:
-                event = await self.private_queue.get()
+                event = await self.get()
 
                 if event.type == EventType.ERROR:
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.ERROR,
@@ -48,7 +48,7 @@ class ZipAtom(CombinationAtom):
                             AssignationLogLevel.INFO,
                             "ZipAtom: Complete",
                         )
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.COMPLETE,
@@ -58,7 +58,7 @@ class ZipAtom(CombinationAtom):
                     break  # Everything left of us is done, so we can shut down as well
 
                 if self.state[0] is not None and self.state[1] is not None:
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.NEXT,

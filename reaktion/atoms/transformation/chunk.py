@@ -13,10 +13,10 @@ class ChunkAtom(CombinationAtom):
     async def run(self):
         try:
             while True:
-                event = await self.private_queue.get()
+                event = await self.get()
 
                 if event.type == EventType.ERROR:
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.ERROR,
@@ -36,7 +36,7 @@ class ChunkAtom(CombinationAtom):
                     ), "ChunkAtom only supports flattening lists"
 
                     for value in event.value[0]:
-                        await self.event_queue.put(
+                        await self.transport.put(
                             OutEvent(
                                 handle="return_0",
                                 type=EventType.NEXT,
@@ -46,7 +46,7 @@ class ChunkAtom(CombinationAtom):
                         )
 
                 if event.type == EventType.COMPLETE:
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.COMPLETE,

@@ -1,5 +1,5 @@
-from typing import List, Tuple, Union
-from pydantic import BaseModel, Field
+from typing import List, Tuple, Union, Dict, List, Tuple, Any
+from pydantic import BaseModel, Field, validator
 from enum import Enum
 
 
@@ -9,7 +9,7 @@ class EventType(str, Enum):
     COMPLETE = "COMPLETE"
 
 
-Returns = List
+Returns = Tuple[Any, ...]
 
 
 class InEvent(BaseModel):
@@ -23,6 +23,20 @@ class InEvent(BaseModel):
         None, description="The value of the event (null, exception or any"
     )
     """ The attached value of the event"""
+
+    @validator("handle")
+    def validate_handle(cls, v):
+        if isinstance(v, int):
+            v = f"arg_{v}"
+
+        if v.startswith("return_"):
+            raise ValueError(f"Handle needs to start with arg_. This is an inevent {v}")
+        if not v.startswith("arg_"):
+            raise ValueError(
+                f"Handle needs to start with arg_. This is an outevent {v} "
+            )
+
+        return v
 
     class Config:
         arbitrary_types_allowed = True
@@ -39,6 +53,20 @@ class OutEvent(BaseModel):
         None, description="The value of the event (null, exception or any"
     )
     """ The attached value of the event"""
+
+    @validator("handle")
+    def validate_handle(cls, v):
+        if isinstance(v, int):
+            v = f"return_{v}"
+
+        if v.startswith("arg_"):
+            raise ValueError(f"Handle cannot start with arg_. This is an outevent {v}")
+        if not v.startswith("return_"):
+            raise ValueError(
+                f"Handle needs to start with return_. This is an outevent {v}"
+            )
+
+        return v
 
     def to_state(self):
         return {

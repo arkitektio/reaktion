@@ -23,10 +23,10 @@ class WithLatestAtom(CombinationAtom):
         initial_fire = True  # Will be set to False after the first event has been fired (first all none )
         try:
             while True:
-                event = await self.private_queue.get()
+                event = await self.get()
 
                 if event.type == EventType.ERROR:
-                    await self.event_queue.put(
+                    await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.ERROR,
@@ -42,7 +42,7 @@ class WithLatestAtom(CombinationAtom):
                     self.complete[streamIndex] = True
 
                     if streamIndex == 0:
-                        await self.event_queue.put(
+                        await self.transport.put(
                             OutEvent(
                                 handle="return_0",
                                 type=EventType.COMPLETE,
@@ -58,7 +58,7 @@ class WithLatestAtom(CombinationAtom):
                         streamIndex == 0 or initial_fire
                     ):
                         initial_fire = False
-                        await self.event_queue.put(
+                        await self.transport.put(
                             OutEvent(
                                 handle="return_0",
                                 type=EventType.NEXT,

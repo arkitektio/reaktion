@@ -1,24 +1,10 @@
-
-
-
-import logging
-from fakts.fakts import Fakts
-from fakts.grants.yaml import YamlGrant
-import herre
-from reaktion.agent import FlussAgent
+import asyncio
 from rich.logging import RichHandler
+import logging
 
-logger = logging.getLogger()
-logger.setLevel("INFO")
+from reaktion.run import main
 
-stream = RichHandler(markup=True)
-logging.root.setLevel("INFO")
-logging.root.addHandler(stream)
+logging.basicConfig(level="INFO", handlers=[RichHandler()])
 
 
-fakts = Fakts(name="fluss_test", grants=[YamlGrant(filepath="fluss.yaml")])
-
-agent = ReaktionAgent(with_monitor=False, fakts=fakts)
-
-
-agent.provide()
+asyncio.run(main())

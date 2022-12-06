@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 from pydantic import BaseModel, Field
 from rekuest.actors.base import Actor
@@ -15,9 +15,11 @@ from rekuest.api.schema import (
     ReservationStatus,
     TemplateFragment,
     afind,
+    NodeFragment,
+    aget_template,
 )
 from rekuest.messages import Assignation, Provision
-from rekuest.postmans.utils import ReservationContract, use
+from rekuest.postmans.utils import ReservationContract
 from koil.types import Contextual
 from fluss.api.schema import (
     ArgNodeFragment,
@@ -25,6 +27,7 @@ from fluss.api.schema import (
     FlowFragment,
     KwargNodeFragment,
     ReactiveNodeFragment,
+    TemplateNodeFragment,
     ReturnNodeFragment,
     RunMutationStart,
     aget_flow,
@@ -36,7 +39,16 @@ from fluss.api.schema import (
 from reaktion.events import EventType, OutEvent
 from reaktion.utils import connected_events
 from reaktion.atoms.utils import atomify
+from typing import Protocol, runtime_checkable, Callable
+from rekuest.postmans.utils import localuse, arkiuse, RPCContract
 import logging
+from reaktion.contractors import (
+    NodeContractor,
+    TemplateContractor,
+    arkicontractor,
+    localcontractor,
+)
+from reaktion.atoms.transport import AtomTransport
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +58,23 @@ class NodeState(BaseModel):
 
 
 class FlowActor(Actor):
-    contracts: Dict[str, ReservationContract] = Field(default_factory=dict)
-    flow: Contextual[FlowFragment]
+    is_generator: bool = False
+    flow: FlowFragment
+    contracts: Dict[str, RPCContract] = Field(default_factory=dict)
     expand_inputs: bool = False
     shrink_outputs: bool = False
     provided = False
     is_generator: bool = False
+    nodeContractor: NodeContractor = arkicontractor
+    templateContractor: TemplateContractor = localcontractor
+
+    # Functionality for running the flow
+
+    # Assign Related Functionality
+    run_mutation: Callable = arun
+    snapshot_mutation: Callable = asnapshot
+    track_mutation: Callable = atrack
+    atomifier: Callable = atomify
 
     run_states: Dict[
         str,
@@ -61,17 +84,17 @@ class FlowActor(Actor):
     reservation_state: Dict[str, ReservationFragment] = Field(default_factory=dict)
     _lock = None
 
-    async def on_provide(self, provision: ProvisionFragment):
+    async def on_provide(self, provision: Provision):
         self._lock = asyncio.Lock()
-        self.flow = await aget_flow(id=self.provision.template.params["flow"])
-        self.is_generator = self.provision.template.node.kind == NodeKind.GENERATOR
 
         argNode = [x for x in self.flow.graph.nodes if isinstance(x, ArgNodeFragment)][
             0
         ]
+
         kwargNode = [
             x for x in self.flow.graph.nodes if isinstance(x, KwargNodeFragment)
         ][0]
+
         returnNode = [
             x for x in self.flow.graph.nodes if isinstance(x, ReturnNodeFragment)
         ][0]
@@ -81,24 +104,22 @@ class FlowActor(Actor):
         ]
 
         self.contracts = {
-            x.id: use(
-                node=await afind(hash=x.hash),
-                provision=provision.id,
-                reference=x.id,
-                expand_outputs=False,
-                shrink_inputs=False,
-                on_reservation_change=self.on_reservation_change,
-            )
-            for x in arkitektNodes
+            node.id: await self.nodeContractor(node, provision)
+            for node in arkitektNodes
         }
 
-        await self.aprov_log("Entering")
+        templateNodes = [
+            x for x in self.flow.graph.nodes if isinstance(x, TemplateNodeFragment)
+        ]
+        for templateNode in templateNodes:
+            self.contracts[templateNode.id] = await self.templateContractor(
+                templateNode, provision
+            )
 
         futures = [contract.aenter() for contract in self.contracts.values()]
         await asyncio.gather(*futures)
 
         self.provided = True
-        await self.aprov_log("Started")
 
     async def on_reservation_change(self, res: ReservationFragment):
         async with self._lock:
@@ -123,16 +144,20 @@ class FlowActor(Actor):
 
     async def on_assign(self, assignation: Assignation):
 
-        run = await arun(assignation=assignation.assignation, flow=self.flow)
+        run = await self.run_mutation(
+            assignation=assignation.assignation, flow=self.flow
+        )
 
         await self.aass_log(assignation.assignation, "Starting")
 
         t = 0
         state = {}
-        await asnapshot(run=run, events=list(state.values()), t=t)
+        await self.snapshot_mutation(run=run, events=list(state.values()), t=t)
 
         try:
             event_queue = asyncio.Queue()
+
+            atomtransport = AtomTransport(queue=event_queue)
 
             argNode = [
                 x for x in self.flow.graph.nodes if isinstance(x, ArgNodeFragment)
@@ -153,16 +178,20 @@ class FlowActor(Actor):
 
             await self.aass_log(assignation.assignation, "Set up the graph")
 
-            async def ass_log(assignation, level, message):
+            async def ass_log(assignation: Assignation, level, message):
                 await self.aass_log(assignation.assignation, level, message)
                 logging.info(f"{assignation}, {message}")
 
             atoms = {
-                x.id: atomify(x, event_queue, self.contracts, assignation, alog=ass_log)
+                x.id: self.atomifier(
+                    x, atomtransport, self.contracts, assignation, alog=ass_log
+                )
                 for x in participatingNodes
             }
 
             await self.aass_log(assignation.assignation, "Atomification complete")
+
+            await asyncio.gather(*[atom.aenter() for atom in atoms.values()])
 
             tasks = [asyncio.create_task(atom.start()) for atom in atoms.values()]
 
@@ -200,7 +229,7 @@ class FlowActor(Actor):
                     if event.type == EventType.ERROR:
                         raise event.value
 
-                track = await atrack(
+                track = await self.track_mutation(
                     run=run,
                     source=event.source,
                     handle=event.handle,
@@ -215,7 +244,9 @@ class FlowActor(Actor):
                 t += 1
 
                 if t % 3 == 0:
-                    await asnapshot(run=run, events=list(state.values()), t=t)
+                    await self.snapshot_mutation(
+                        run=run, events=list(state.values()), t=t
+                    )
 
                 spawned_events = connected_events(self.flow.graph, event)
 
@@ -279,6 +310,7 @@ class FlowActor(Actor):
             )
 
         except Exception as e:
+            logging.critical(f"Assignation {assignation} failed", exc_info=True)
 
             await self.aass_log(
                 assignation.assignation, message=repr(e), level=AssignationStatus.ERROR
