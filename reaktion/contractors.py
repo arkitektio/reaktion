@@ -1,7 +1,10 @@
 from typing import Protocol, runtime_checkable
 from rekuest.postmans.utils import RPCContract, arkiuse, localuse, mockuse
-from fluss.api.schema import ArkitektNodeFragment, TemplateNodeFragment
+from fluss.api.schema import ArkitektNodeFragment
 from rekuest.messages import Provision
+from rekuest.api.schema import afind
+from rekuest.postmans.vars import get_current_postman
+from rekuest.structures.registry import get_current_structure_registry
 
 
 @runtime_checkable
@@ -12,28 +15,24 @@ class NodeContractor(Protocol):
         ...
 
 
-@runtime_checkable
-class TemplateContractor(Protocol):
-    async def __call__(
-        self, template: TemplateNodeFragment, provision: Provision
-    ) -> RPCContract:
-        ...
-
-
 async def arkicontractor(
     node: ArkitektNodeFragment, provision: Provision
 ) -> RPCContract:
 
+    node = await afind(hash=node.hash)
+
     return arkiuse(
-        node=node,
+        definition=node,
+        postman=get_current_postman(),
+        structure_registry=get_current_structure_registry(),
         provision=provision.guardian,
         shrink_inputs=False,
-        shrink_outputs=False,
+        expand_outputs=False,
     )  # No need to shrink inputs/outputs for arkicontractors
 
 
 async def localcontractor(
-    template: TemplateNodeFragment, provision: Provision
+    template: ArkitektNodeFragment, provision: Provision
 ) -> RPCContract:
 
     return localuse(
@@ -46,18 +45,6 @@ async def localcontractor(
 
 async def arkimockcontractor(
     node: ArkitektNodeFragment, provision: Provision
-) -> RPCContract:
-
-    return mockuse(
-        node=node,
-        provision=provision.guardian,
-        shrink_inputs=False,
-        shrink_outputs=False,
-    )  # No need to shrink inputs/outputs for arkicontractors
-
-
-async def templatemockcontractor(
-    node: TemplateNodeFragment, provision: Provision
 ) -> RPCContract:
 
     return mockuse(

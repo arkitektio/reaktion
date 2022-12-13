@@ -44,6 +44,11 @@ class ChunkAtom(CombinationAtom):
                                 source=self.node.id,
                             )
                         )
+                        if self.node.defaults:
+                            sleep = self.node.defaults.get("sleep", None)
+                            print("Sleeping in interval", sleep)
+                            if sleep:
+                                await asyncio.sleep(sleep * 0.001)
 
                 if event.type == EventType.COMPLETE:
                     await self.transport.put(
@@ -62,3 +67,4 @@ class ChunkAtom(CombinationAtom):
 
         except Exception as e:
             logger.exception(f"Atom {self.node} excepted")
+            raise e

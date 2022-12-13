@@ -8,7 +8,6 @@ from fluss.api.schema import (
     FlowNodeFragment,
     ReactiveImplementationModelInput,
     ReactiveNodeFragment,
-    TemplateNodeFragment,
 )
 from reaktion.atoms.arkitekt import ArkitektMapAtom, ArkitektMergeMapAtom
 from reaktion.atoms.transformation.chunk import ChunkAtom

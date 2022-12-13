@@ -27,7 +27,6 @@ from fluss.api.schema import (
     FlowFragment,
     KwargNodeFragment,
     ReactiveNodeFragment,
-    TemplateNodeFragment,
     ReturnNodeFragment,
     RunMutationStart,
     aget_flow,
@@ -44,7 +43,6 @@ from rekuest.postmans.utils import localuse, arkiuse, RPCContract
 import logging
 from reaktion.contractors import (
     NodeContractor,
-    TemplateContractor,
     arkicontractor,
     localcontractor,
 )
@@ -66,7 +64,6 @@ class FlowActor(Actor):
     provided = False
     is_generator: bool = False
     nodeContractor: NodeContractor = arkicontractor
-    templateContractor: TemplateContractor = localcontractor
 
     # Functionality for running the flow
 
@@ -74,7 +71,9 @@ class FlowActor(Actor):
     run_mutation: Callable = arun
     snapshot_mutation: Callable = asnapshot
     track_mutation: Callable = atrack
+
     atomifier: Callable = atomify
+    """ Atomifier is a function that takes a node and returns an atom """
 
     run_states: Dict[
         str,
@@ -107,14 +106,6 @@ class FlowActor(Actor):
             node.id: await self.nodeContractor(node, provision)
             for node in arkitektNodes
         }
-
-        templateNodes = [
-            x for x in self.flow.graph.nodes if isinstance(x, TemplateNodeFragment)
-        ]
-        for templateNode in templateNodes:
-            self.contracts[templateNode.id] = await self.templateContractor(
-                templateNode, provision
-            )
 
         futures = [contract.aenter() for contract in self.contracts.values()]
         await asyncio.gather(*futures)

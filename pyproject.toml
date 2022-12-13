@@ -6,8 +6,8 @@ authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-rekuest = ">=0.1.5"
-fluss = ">=0.1.23"
+rekuest = ">=0.1.10"
+fluss = ">=0.1.24"
 
 [tool.poetry.group.dev.dependencies]
 testcontainers = "3.7.0"
@@ -29,6 +29,7 @@ markers = [
     "integration: marks tests that require a running server",
     "qt: marks tests that require a running qt application",
     "serialize: marks tests that require serialization of graphs",
+    "actor: marks tests that require an actor",
 ]
 
 [build-system]

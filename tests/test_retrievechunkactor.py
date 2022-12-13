@@ -3,8 +3,6 @@ import pytest
 from fluss.api.schema import (
     FlowFragment,
     ArkitektNodeFragment,
-    ReactiveNodeFragment,
-    TemplateNodeFragment,
     RunMutationStart,
     SnapshotMutationSnapshot,
     TrackMutationTrack,
@@ -15,15 +13,18 @@ from rekuest.messages import Provision, Assignation
 from rekuest.agents.transport.protocols.agent_json import *
 from reaktion.actor import FlowActor
 from rekuest.agents.transport.mock import MockAgentTransport
-from .flows import add_three_flow
+from .flows import retrieve_chunk_flow
 from rekuest.postmans.utils import mockuse
 
 
-async def add_three_flow_contractor(node: ArkitektNodeFragment, provision: Provision):
+async def retrieve_chunk_contractor(node: ArkitektNodeFragment, provision: Provision):
     """This function mocks the contractor for the add_three_flow."""
 
     return mockuse(
-        returns=[streamitem.mock() for streamitem in node.outstream[0]],
+        returns=[
+            streamitem.mock(list_len_generator=lambda: 3)
+            for streamitem in node.outstream[0]
+        ],
         reserve_sleep=0.1,
         assign_sleep=0.1,
         stream_sleep=0.1,
@@ -32,7 +33,7 @@ async def add_three_flow_contractor(node: ArkitektNodeFragment, provision: Provi
 
 @pytest.mark.asyncio
 @pytest.mark.actor
-async def test_provide_actor(add_three_flow: FlowFragment):
+async def test_provide_actor(retrieve_chunk_flow: FlowFragment):
 
     provision = Provision(provision=1, guardian=1, user=1)
     assignation = Assignation(assignation=1, user=1, provision=1, args=[])
@@ -63,8 +64,9 @@ async def test_provide_actor(add_three_flow: FlowFragment):
         async with FlowActor(
             provision=provision,
             transport=transport,
-            flow=add_three_flow,
-            nodeContractor=add_three_flow_contractor,
+            flow=retrieve_chunk_flow,
+            is_generator=True,
+            nodeContractor=retrieve_chunk_contractor,
             run_mutation=amockrun,
             snapshot_mutation=amocksnapshot,
             track_mutation=atrackrun,
@@ -81,7 +83,7 @@ async def test_provide_actor(add_three_flow: FlowFragment):
 
 @pytest.mark.asyncio
 @pytest.mark.actor
-async def test_provide_assign(add_three_flow: FlowFragment):
+async def test_provide_assign(retrieve_chunk_flow: FlowFragment):
 
     provision = Provision(provision=1, guardian=1, user=1)
     assignation = Assignation(assignation=1, user=1, provision=1, args=[2])
@@ -116,8 +118,9 @@ async def test_provide_assign(add_three_flow: FlowFragment):
         async with FlowActor(
             provision=provision,
             transport=transport,
-            flow=add_three_flow,
-            nodeContractor=add_three_flow_contractor,
+            flow=retrieve_chunk_flow,
+            is_generator=True,
+            nodeContractor=retrieve_chunk_contractor,
             run_mutation=amockrun,
             snapshot_mutation=amocksnapshot,
             track_mutation=atrackrun,
@@ -132,7 +135,13 @@ async def test_provide_assign(add_three_flow: FlowFragment):
                 assert i.active == True
 
             await actor.process(assignation)
-            x = await transport.areceive(timeout=1)
+
+            for i in range(3):
+                x = await transport.areceive(timeout=2)
+                assert isinstance(x, AssignationChangedMessage)
+                assert x.status == AssignationStatus.YIELD
+                assert isinstance(x.returns[0], str)
+
+            x = await transport.areceive(timeout=2)
             assert isinstance(x, AssignationChangedMessage)
-            assert x.status == AssignationStatus.RETURNED
-            assert isinstance(x.returns[0], int)
+            assert x.status == AssignationStatus.DONE

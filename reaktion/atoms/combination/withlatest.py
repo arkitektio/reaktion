@@ -20,7 +20,6 @@ class WithLatestAtom(CombinationAtom):
         self.state = list(map(lambda x: None, self.node.instream))
         self.complete = list(map(lambda x: False, self.node.instream))
 
-        initial_fire = True  # Will be set to False after the first event has been fired (first all none )
         try:
             while True:
                 event = await self.get()
@@ -54,18 +53,14 @@ class WithLatestAtom(CombinationAtom):
                 if event.type == EventType.NEXT:
                     self.state[streamIndex] = event.value
 
-                    if self.state.count(None) == 0 and (
-                        streamIndex == 0 or initial_fire
-                    ):
-                        initial_fire = False
-                        await self.transport.put(
-                            OutEvent(
-                                handle="return_0",
-                                type=EventType.NEXT,
-                                value=functools.reduce(lambda a, b: a + b, self.state),
-                                source=self.node.id,
-                            )
+                    await self.transport.put(
+                        OutEvent(
+                            handle="return_0",
+                            type=EventType.NEXT,
+                            value=functools.reduce(lambda a, b: a + b, self.state),
+                            source=self.node.id,
                         )
+                    )
 
         except asyncio.CancelledError as e:
             logger.warning(f"Atom {self.node} is getting cancelled")
