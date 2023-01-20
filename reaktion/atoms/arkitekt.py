@@ -17,8 +17,14 @@ class ArkitektMapAtom(MapAtom):
 
     async def map(self, args: Returns) -> Optional[List[Any]]:
         defaults = self.node.defaults or {}
+
+        stream_one = self.node.instream[0]
+        for arg, item in zip(args, stream_one):
+            defaults[item.key] = arg
+
+        print("Assignation", args, defaults)
         returns = await self.contract.aassign(
-            *args, **defaults, parent=self.assignation.assignation
+           **defaults, parent=self.assignation.assignation
         )
         return returns
         # return await self.contract.aassign(*args)
@@ -31,7 +37,11 @@ class ArkitektMergeMapAtom(MergeMapAtom):
     async def merge_map(self, args: Returns) -> Optional[List[Any]]:
         defaults = self.node.defaults or {}
 
+        stream_one = self.node.instream[0]
+        for arg, item in zip(args, stream_one):
+            defaults[item.key] = arg
+
         async for r in self.contract.astream(
-            *args, **defaults, parent=self.assignation.assignation
+             **defaults, parent=self.assignation.assignation
         ):
             yield r

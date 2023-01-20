@@ -103,7 +103,7 @@ class FlowActor(Actor):
         ]
 
         self.contracts = {
-            node.id: await self.nodeContractor(node, provision)
+            node.id: await self.nodeContractor(node, self)
             for node in arkitektNodes
         }
 
@@ -112,15 +112,15 @@ class FlowActor(Actor):
 
         self.provided = True
 
-    async def on_reservation_change(self, res: ReservationFragment):
+    async def on_reservation_change(self, status: ReservationStatus):
+        print("Reservation Change", status)
         async with self._lock:
-            self.reservation_state[res.reference] = res
-
             unactive_reservations = [
                 res
-                for res in self.reservation_state.values()
-                if res.status != ReservationStatus.ACTIVE
+                for res in self.contracts.values()
+                if res.state != ReservationStatus.ACTIVE
             ]
+            print("Unactive Reservations", unactive_reservations)
             if self.provided:
                 if len(unactive_reservations) > 0:
                     await self.transport.change_provision(
