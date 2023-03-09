@@ -18,7 +18,6 @@ class MapAtom(Atom):
                 if event.type == EventType.NEXT:
                     try:
                         result = await self.map(event.value)
-                        print("Result:", result)
                         if result is None:
                             value = ()
                         elif isinstance(result, list) or isinstance(result, tuple):

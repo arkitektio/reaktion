@@ -23,6 +23,7 @@ class WithLatestAtom(CombinationAtom):
         try:
             while True:
                 event = await self.get()
+                print("WithLatestAtom", event)
 
                 if event.type == EventType.ERROR:
                     await self.transport.put(
@@ -36,6 +37,7 @@ class WithLatestAtom(CombinationAtom):
                     break
 
                 streamIndex = index_for_handle(event.handle)
+                print(streamIndex)
 
                 if event.type == EventType.COMPLETE:
                     self.complete[streamIndex] = True
@@ -53,14 +55,15 @@ class WithLatestAtom(CombinationAtom):
                 if event.type == EventType.NEXT:
                     self.state[streamIndex] = event.value
 
-                    await self.transport.put(
-                        OutEvent(
-                            handle="return_0",
-                            type=EventType.NEXT,
-                            value=functools.reduce(lambda a, b: a + b, self.state),
-                            source=self.node.id,
+                    if self.state[0] is not None and self.state[1] is not None:
+                        await self.transport.put(
+                            OutEvent(
+                                handle="return_0",
+                                type=EventType.NEXT,
+                                value=functools.reduce(lambda a, b: a + b, self.state),
+                                source=self.node.id,
+                            )
                         )
-                    )
 
         except asyncio.CancelledError as e:
             logger.warning(f"Atom {self.node} is getting cancelled")

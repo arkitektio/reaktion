@@ -35,18 +35,30 @@ class ChunkAtom(CombinationAtom):
                         event.value[0], list
                     ), "ChunkAtom only supports flattening lists"
 
-                    for value in event.value[0]:
-                        await self.transport.put(
-                            OutEvent(
-                                handle="return_0",
-                                type=EventType.NEXT,
-                                value=[value],
-                                source=self.node.id,
+                    if self.node.defaults:
+                        iterations = self.node.defaults.get("iterations", 1)
+                    else:
+                        iterations = 1
+
+                    for i in range(iterations):
+                        for value in event.value[0]:
+                            await self.transport.put(
+                                OutEvent(
+                                    handle="return_0",
+                                    type=EventType.NEXT,
+                                    value=[value],
+                                    source=self.node.id,
+                                )
                             )
-                        )
+
+                            if self.node.defaults:
+                                sleep = self.node.defaults.get("sleep", None)
+                                print("Sleeping in interval", sleep)
+                                if sleep:
+                                    await asyncio.sleep(sleep * 0.001)
+
                         if self.node.defaults:
-                            sleep = self.node.defaults.get("sleep", None)
-                            print("Sleeping in interval", sleep)
+                            sleep = self.node.defaults.get("iterations_sleep", None)
                             if sleep:
                                 await asyncio.sleep(sleep * 0.001)
 
@@ -55,7 +67,7 @@ class ChunkAtom(CombinationAtom):
                         OutEvent(
                             handle="return_0",
                             type=EventType.COMPLETE,
-                            value=[value],
+                            value=[],
                             source=self.node.id,
                         )
                     )

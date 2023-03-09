@@ -11,11 +11,10 @@ from pydantic import Field
 from rekuest.actors.base import Actor
 from rekuest.agents.base import BaseAgent
 from rekuest.api.schema import (
-    ArgPortInput,
+    PortInput,
     DefinitionInput,
     NodeFragment,
     NodeKind,
-    ReturnPortInput,
     TemplateFragment,
     acreate_template,
     adelete_node,
@@ -109,8 +108,12 @@ async def deploy_graph(
     """
     assert flow.name, "Graph must have a Name in order to be deployed"
 
-    args = [ArgPortInput(**x.dict()) for x in flow.graph.args]
-    returns = [ReturnPortInput(**x.dict()) for x in flow.graph.returns]
+    print([x.dict(by_alias=True) for x in flow.graph.args])
+    print([x.dict(by_alias=True) for x in flow.graph.returns])
+
+
+    args = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.args]
+    returns = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.returns]
 
     template = await acreate_template(
         DefinitionInput(
@@ -120,9 +123,9 @@ async def deploy_graph(
             args=args,
             returns=returns,
             description=description,
-            meta={"flow": flow.id},
             interfaces=["workflow", f"diagram:{flow.workspace.id}", f"flow:{flow.id}"],
         ),
+        instance_id=app.rekuest.agent.instance_id,
         params={"flow": flow.id},
         extensions=["flow"],
     )

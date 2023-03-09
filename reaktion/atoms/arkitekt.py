@@ -22,7 +22,6 @@ class ArkitektMapAtom(MapAtom):
         for arg, item in zip(args, stream_one):
             defaults[item.key] = arg
 
-        print("Assignation", args, defaults)
         returns = await self.contract.aassign(
            **defaults, parent=self.assignation.assignation
         )

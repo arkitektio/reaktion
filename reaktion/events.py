@@ -69,11 +69,17 @@ class OutEvent(BaseModel):
         return v
 
     def to_state(self):
+
+        if self.value:
+            value  = self.value if not isinstance(self.value, Exception) else str(self.value)
+        else:
+            value = None
+        
         return {
             "source": self.source,
             "handle": self.handle,
             "type": self.type,
-            "value": str(self.value),
+            "value": value
         }
 
     class Config:

@@ -21,7 +21,6 @@ class ReaktionAgent(StatefulAgent):
         except KeyError as e:
             try:
                 x = await aget_template(prov.template)
-                print(x)
                 assert "flow" in x.params, "Template is not a flow"
 
                 t = await aget_flow(id=x.params["flow"])

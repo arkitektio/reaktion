@@ -1,52 +1,31 @@
 import asyncio
 import logging
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
+
+from fluss.api.schema import (ArgNodeFragment, ArkitektNodeFragment,
+                              FlowFragment, KwargNodeFragment,
+                              ReactiveNodeFragment, ReturnNodeFragment,
+                              RunMutationStart, aget_flow, arun, arunlog,
+                              asnapshot, atrack)
+from koil.types import Contextual
+from reaktion.atoms.transport import AtomTransport
+from reaktion.atoms.utils import atomify
+from reaktion.contractors import (NodeContractor, arkicontractor,
+                                  localcontractor)
+from reaktion.events import EventType, InEvent, OutEvent
+from reaktion.utils import connected_events
 from rekuest.actors.base import Actor
 from rekuest.actors.functional import AsyncFuncActor, AsyncGenActor
-from rekuest.api.schema import (
-    AssignationLogLevel,
-    AssignationStatus,
-    NodeKind,
-    ProvisionFragment,
-    ProvisionStatus,
-    ReservationFragment,
-    ReservationStatus,
-    TemplateFragment,
-    afind,
-    NodeFragment,
-    aget_template,
-)
+from rekuest.api.schema import (AssignationLogLevel, AssignationStatus,
+                                NodeFragment, NodeKind, ProvisionFragment,
+                                ProvisionStatus, ReservationFragment,
+                                ReservationStatus, TemplateFragment, afind,
+                                aget_template)
 from rekuest.messages import Assignation, Provision
-from rekuest.postmans.utils import ReservationContract
-from koil.types import Contextual
-from fluss.api.schema import (
-    ArgNodeFragment,
-    ArkitektNodeFragment,
-    FlowFragment,
-    KwargNodeFragment,
-    ReactiveNodeFragment,
-    ReturnNodeFragment,
-    RunMutationStart,
-    aget_flow,
-    arun,
-    arunlog,
-    asnapshot,
-    atrack,
-)
-from reaktion.events import EventType, OutEvent
-from reaktion.utils import connected_events
-from reaktion.atoms.utils import atomify
-from typing import Protocol, runtime_checkable, Callable
-from rekuest.postmans.utils import localuse, arkiuse, RPCContract
-import logging
-from reaktion.contractors import (
-    NodeContractor,
-    arkicontractor,
-    localcontractor,
-)
-from reaktion.atoms.transport import AtomTransport
+from rekuest.postmans.utils import (ReservationContract, RPCContract, arkiuse,
+                                    localuse)
 
 logger = logging.getLogger(__name__)
 
@@ -111,25 +90,24 @@ class FlowActor(Actor):
         await asyncio.gather(*futures)
 
         self.provided = True
+        await self.on_reservation_change(None)
 
     async def on_reservation_change(self, status: ReservationStatus):
-        print("Reservation Change", status)
         async with self._lock:
             unactive_reservations = [
                 res
                 for res in self.contracts.values()
                 if res.state != ReservationStatus.ACTIVE
             ]
-            print("Unactive Reservations", unactive_reservations)
             if self.provided:
                 if len(unactive_reservations) > 0:
                     await self.transport.change_provision(
-                        self.provision.id,
+                        self.provision.provision,
                         status=ProvisionStatus.CRITICAL,
                     )
                 else:
                     await self.transport.change_provision(
-                        self.provision.id,
+                        self.provision.provision,
                         status=ProvisionStatus.ACTIVE,
                     )
 
@@ -186,27 +164,58 @@ class FlowActor(Actor):
 
             tasks = [asyncio.create_task(atom.start()) for atom in atoms.values()]
 
-            for index, stream in enumerate(argNode.outstream):
-                print(stream)
-                if len(stream) > 0:
-                    value = (assignation.args[index],)  # empty stream are ommited
-                else:
-                    value = tuple()
 
-                initial_event = OutEvent(
-                    handle=f"return_{index}",
-                    type=EventType.NEXT,
-                    source=argNode.id,
-                    value=value,
+
+
+            stream = argNode.outstream[0]
+            value = [assignation.args[key] for key, index in enumerate(stream)]
+
+            initial_event = OutEvent(
+                handle=f"return_0",
+                type=EventType.NEXT,
+                source=argNode.id,
+                value=value,
+            )
+            initial_done_event = OutEvent(
+                handle=f"return_0",
+                type=EventType.COMPLETE,
+                source=argNode.id,
+            )
+
+            logger.info(f"Putting initial event {initial_event}")
+
+            await event_queue.put(initial_event)
+            await event_queue.put(initial_done_event)
+
+
+
+
+            edge_targets = [e.target for e in self.flow.graph.edges]
+            nodes_without_instream = [x for x in participatingNodes if len(x.instream[0]) == 0 and x.id not in edge_targets]
+
+
+            logger.error(f"Nodes without instream: {nodes_without_instream}")
+            for node in nodes_without_instream:
+
+                assert node.id in atoms, "Atom not found. Should not happen."
+                atom = atoms[node.id]
+
+                initial_event = InEvent(
+                        target=node.id,
+                        handle="arg_0",
+                        type=EventType.NEXT,
+                        value=[],
                 )
-                initial_done_event = OutEvent(
-                    handle=f"return_{index}",
-                    type=EventType.COMPLETE,
-                    source=argNode.id,
+                done_event = InEvent(
+                        target=node.id,
+                        handle="arg_0",
+                        type=EventType.COMPLETE,
                 )
 
-                await event_queue.put(initial_event)
-                await event_queue.put(initial_done_event)
+                await atom.put(initial_event)
+                await atom.put(done_event)
+
+
 
             complete = False
 
@@ -224,9 +233,9 @@ class FlowActor(Actor):
                     run=run,
                     source=event.source,
                     handle=event.handle,
-                    value=[str(i) for i in list(event.value)]
+                    value=event.value
                     if event.value and not isinstance(event.value, Exception)
-                    else event.value,
+                    else str(event.value),
                     type=event.type,
                     t=t,
                 )
@@ -240,6 +249,8 @@ class FlowActor(Actor):
                     )
 
                 spawned_events = connected_events(self.flow.graph, event)
+                if not spawned_events:
+                    logger.warning(f"No events spawned from {event}")
 
                 for spawned_event in spawned_events:
                     logger.info(f"-> {spawned_event}")
