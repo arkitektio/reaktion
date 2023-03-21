@@ -43,6 +43,7 @@ from fakts.grants import CacheGrant
 from herre.grants import CacheGrant as HerreCacheGrant
 from herre.grants.oauth2.refresh import RefreshGrant
 from herre.grants.fakts import FaktsGrant
+from fakts.grants.remote import Manifest
 from fakts.discovery import StaticDiscovery
 from herre import Herre
 from arkitekt.apps.fluss import ConnectedFluss
@@ -64,8 +65,11 @@ app = ConnectedApp(
             cache_file=f"{identifier}-{version}_cache.json",
             hash=f"{identifier}-{version}-{url}",
             grant=DeviceCodeGrant(
-                identifier=identifier,
-                version=version,
+                manifest=Manifest(
+                    identifier=identifier,
+                    version=version,
+                    scopes=["read", "write"],
+                ),
                 discovery=StaticDiscovery(base_url=url),
             ),
         )

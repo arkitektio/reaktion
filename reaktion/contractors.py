@@ -30,7 +30,7 @@ async def arkicontractor(
         expand_outputs=False,
         reference=node.id,
         state_hook=actor.on_reservation_change,
-    )  # No need to shrink inputs/outputs for arkicontractors
+    )  # No need to shrink inputs/outsputs for arkicontractors
 
 
 async def localcontractor(

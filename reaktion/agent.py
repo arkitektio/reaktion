@@ -32,7 +32,7 @@ class ReaktionAgent(StatefulAgent):
                 )
 
             except Exception as e:
-                raise ProvisionException("No Actor Builder found for template") from e
+                raise ProvisionException("No Actor Builders found for template") from e
 
         task = await actor.arun()
         self.provisionActorMap[prov.provision] = actor
