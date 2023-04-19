@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field
 from rekuest.api.schema import AssignationLogLevel
 from rekuest.messages import Assignation
 from fluss.api.schema import FlowNodeCommonsFragmentBase
-from rath.scalars import ID
 from reaktion.atoms.errors import AtomQueueFull
 from reaktion.events import EventType, InEvent, OutEvent
 import logging
@@ -63,6 +62,7 @@ class Atom(BaseModel):
                     type=EventType.ERROR,
                     source=self.node.id,
                     value=e,
+                    caused_by=[-1],
                 )
             )
 

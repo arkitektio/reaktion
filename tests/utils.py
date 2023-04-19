@@ -14,3 +14,8 @@ def expectnext(event: OutEvent):
             raise event.value
         else:
             raise Exception(f"Unexpected event: {event}")
+
+
+def expecterror(event: OutEvent):
+    if event.type != EventType.ERROR:
+        raise Exception(f"Unexpected event: {event}")

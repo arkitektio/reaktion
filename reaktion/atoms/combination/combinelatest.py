@@ -1,8 +1,6 @@
 import asyncio
 from typing import List, Tuple
-import uuid
 from rekuest.api.schema import AssignationLogLevel
-from rekuest.messages import Assignation
 from reaktion.atoms.combination.base import CombinationAtom
 from reaktion.events import EventType, OutEvent, Returns
 import logging
@@ -26,6 +24,7 @@ class CombineLatestAtom(CombinationAtom):
                             type=EventType.ERROR,
                             value=event.value,
                             source=self.node.id,
+                            caused_by=[event.current_t],
                         )
                     )
                     break
@@ -54,18 +53,25 @@ class CombineLatestAtom(CombinationAtom):
                             handle="return_0",
                             type=EventType.COMPLETE,
                             source=self.node.id,
+                            caused_by=[
+                                self.state[0].current_t,
+                                self.state[1].current_t,
+                            ],
                         )
                     )
                     break  # Everything left of us is done, so we can shut down as well
 
                 if self.state[0] is not None and self.state[1] is not None:
-
                     await self.transport.put(
                         OutEvent(
                             handle="return_0",
                             type=EventType.NEXT,
                             value=self.state[0].value + self.state[1].value,
                             source=self.node.id,
+                            caused_by=[
+                                self.state[0].current_t,
+                                self.state[1].current_t,
+                            ],
                         )
                     )
                     self.state = (None, None)
@@ -74,5 +80,5 @@ class CombineLatestAtom(CombinationAtom):
             logger.warning(f"Atom {self.node} is getting cancelled")
             raise e
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Atom {self.node} excepted")

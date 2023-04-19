@@ -1,19 +1,23 @@
-import asyncio
 from typing import Awaitable, Callable, Dict
-from rekuest.api.schema import AssignationFragment, AssignationLogLevel, NodeKind
+from rekuest.api.schema import AssignationLogLevel, NodeKind
 from rekuest.messages import Assignation
-from rekuest.postmans.utils import ReservationContract
 from fluss.api.schema import (
     ArkitektNodeFragment,
+    LocalNodeFragment,
     FlowNodeFragment,
     ReactiveImplementationModelInput,
     ReactiveNodeFragment,
 )
+import asyncio
+
+print(asyncio.Queue)
+
 from reaktion.atoms.arkitekt import ArkitektMapAtom, ArkitektMergeMapAtom
+from reaktion.atoms.local import LocalMapAtom, LocalMergeMapAtom
 from reaktion.atoms.transformation.chunk import ChunkAtom
+from reaktion.atoms.transformation.split import SplitAtom
 from reaktion.atoms.combination.zip import ZipAtom
 from reaktion.atoms.combination.withlatest import WithLatestAtom
-from reaktion.atoms.combination.combinelatest import CombineLatestAtom
 from rekuest.postmans.utils import RPCContract
 from .base import Atom
 from .transport import AtomTransport
@@ -23,10 +27,10 @@ def atomify(
     node: FlowNodeFragment,
     transport: AtomTransport,
     contracts: Dict[str, RPCContract],
+    local_contracts: Dict[str, RPCContract],
     assignation: Assignation,
     alog: Callable[[Assignation, AssignationLogLevel, str], Awaitable[None]] = None,
 ) -> Atom:
-
     if isinstance(node, ArkitektNodeFragment):
         if node.kind == NodeKind.FUNCTION:
             return ArkitektMapAtom(
@@ -40,6 +44,24 @@ def atomify(
             return ArkitektMergeMapAtom(
                 node=node,
                 contract=contracts[node.id],
+                transport=transport,
+                assignation=assignation,
+                alog=alog,
+            )
+
+    if isinstance(node, LocalNodeFragment):
+        if node.kind == NodeKind.FUNCTION:
+            return LocalMapAtom(
+                node=node,
+                contract=local_contracts[node.id],
+                transport=transport,
+                assignation=assignation,
+                alog=alog,
+            )
+        if node.kind == NodeKind.GENERATOR:
+            return LocalMergeMapAtom(
+                node=node,
+                contract=local_contracts[node.id],
                 transport=transport,
                 assignation=assignation,
                 alog=alog,
@@ -69,6 +91,13 @@ def atomify(
             )
         if node.implementation == ReactiveImplementationModelInput.COMBINELATEST:
             return WithLatestAtom(
+                node=node,
+                transport=transport,
+                assignation=assignation,
+                alog=alog,
+            )
+        if node.implementation == ReactiveImplementationModelInput.SPLIT:
+            return SplitAtom(
                 node=node,
                 transport=transport,
                 assignation=assignation,

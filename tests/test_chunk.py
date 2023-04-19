@@ -1,24 +1,12 @@
-import json
 import pytest
-from rekuest.api.schema import NodeKind
-import yaml
-from .utils import build_relative, expectnext
-from rekuest.messages import Provision, Assignation
+from .utils import expectnext
+from rekuest.messages import Assignation
 from rekuest.agents.transport.protocols.agent_json import *
-from reaktion.actor import FlowActor
-from rekuest.agents.transport.mock import MockAgentTransport
-from .flows import add_three_flow
-from rekuest.postmans.utils import mockuse
-from reaktion.atoms.arkitekt import ArkitektMapAtom
 import asyncio
-from reaktion.events import InEvent, OutEvent, EventType
-from reaktion.atoms.transport import AtomTransport, MockTransport
-from .nodes import (
-    reactive_zip_node,
+from reaktion.events import InEvent, EventType
+from reaktion.atoms.transport import MockTransport
+from .conftest import (
     FlowNodeFragmentBaseReactiveNode,
-    reactive_withlatest_node,
-    reactive_chunk_node,
-    reactive_chunk_node_with_defaults,
 )
 from reaktion.atoms.transformation.chunk import ChunkAtom
 
@@ -28,7 +16,6 @@ from reaktion.atoms.transformation.chunk import ChunkAtom
 async def test_chunk_without_defaults(
     reactive_chunk_node: FlowNodeFragmentBaseReactiveNode,
 ):
-
     event_queue = asyncio.Queue()
     atomtransport = MockTransport(queue=event_queue)
 
@@ -48,6 +35,7 @@ async def test_chunk_without_defaults(
                 handle="arg_0",
                 type=EventType.NEXT,
                 value=([1, 2, 3],),
+                current_t=0,
             )
         )
 
@@ -75,7 +63,6 @@ async def test_chunk_without_defaults(
 async def test_chunk_with_sleep_defaults(
     reactive_chunk_node_with_defaults: FlowNodeFragmentBaseReactiveNode,
 ):
-
     event_queue = asyncio.Queue()
     atomtransport = MockTransport(queue=event_queue)
 
@@ -96,6 +83,7 @@ async def test_chunk_with_sleep_defaults(
                 handle="arg_0",
                 type=EventType.NEXT,
                 value=([1, 2, 3],),
+                current_t=0,
             )
         )
 

@@ -1,4 +1,3 @@
-import json
 import pytest
 from fluss.api.schema import (
     FlowNodeFragmentBaseArkitektNode,
@@ -10,9 +9,33 @@ from fluss.api.schema import (
     MapStrategy,
 )
 from rekuest.api.schema import NodeKind
+import json
+import pytest
+from fluss.api.schema import (
+    FlowFragment,
+)
+from .utils import build_relative
 
 
-@pytest.fixture
+def build_flow(path):
+    with open(build_relative(path), "r") as f:
+        g = json.load(f)
+        print(g)
+
+    return FlowFragment(**g)
+
+
+@pytest.fixture(scope="session")
+def add_three_flow():
+    return build_flow("flowjsons/add_three_flow.json")
+
+
+@pytest.fixture(scope="session")
+def retrieve_chunk_flow():
+    return build_flow("flowjsons/retrieve_chunk_flow.json")
+
+
+@pytest.fixture(scope="session")
 def arkitekt_generator_node():
     return FlowNodeFragmentBaseArkitektNode(
         id=1,
@@ -30,7 +53,7 @@ def arkitekt_generator_node():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def arkitekt_functional_node():
     return FlowNodeFragmentBaseArkitektNode(
         id=1,
@@ -48,7 +71,7 @@ def arkitekt_functional_node():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def reactive_zip_node():
     return FlowNodeFragmentBaseReactiveNode(
         id=1,
@@ -61,7 +84,7 @@ def reactive_zip_node():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def reactive_withlatest_node():
     return FlowNodeFragmentBaseReactiveNode(
         id=1,
@@ -74,7 +97,7 @@ def reactive_withlatest_node():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def reactive_chunk_node_with_defaults():
     return FlowNodeFragmentBaseReactiveNode(
         id=1,
@@ -87,7 +110,7 @@ def reactive_chunk_node_with_defaults():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def reactive_chunk_node():
     return FlowNodeFragmentBaseReactiveNode(
         id=1,
@@ -97,4 +120,27 @@ def reactive_chunk_node():
         constream=[],
         instream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
         outstream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
+    )
+
+
+@pytest.fixture(scope="session")
+def reactive_split_node():
+    return FlowNodeFragmentBaseReactiveNode(
+        id=1,
+        position=FlowNodeFragmentBasePosition(x=0, y=0),
+        implementation=ReactiveImplementationModelInput.CHUNK,
+        defaults={},
+        constream=[],
+        instream=[
+            [
+                StreamItemFragment(key=1, kind=StreamKind.INT, nullable=True),
+                StreamItemFragment(key=1, kind=StreamKind.INT, nullable=True),
+                StreamItemFragment(key=1, kind=StreamKind.INT, nullable=True),
+            ]
+        ],
+        outstream=[
+            [StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)],
+            [StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)],
+            [StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)],
+        ],
     )

@@ -1,7 +1,6 @@
 from typing import List
 from rekuest.api.schema import NodeKindInput
 from fluss.api.schema import (
-    FlowFragment,
     FlowFragmentGraph,
     FlowNodeFragmentBaseArkitektNode,
     FlowNodeFragmentBaseReactiveNode,
@@ -12,8 +11,9 @@ import pydantic
 from .errors import FlowLogicError
 
 
-def connected_events(graph: FlowFragmentGraph, event: OutEvent) -> List[InEvent]:
-
+def connected_events(
+    graph: FlowFragmentGraph, event: OutEvent, t: int
+) -> List[InEvent]:
     events = []
 
     for edge in graph.edges:
@@ -25,6 +25,7 @@ def connected_events(graph: FlowFragmentGraph, event: OutEvent) -> List[InEvent]
                         handle=edge.target_handle,
                         type=event.type,
                         value=event.value,
+                        current_t=t,
                     )
                 )
             except pydantic.ValidationError as e:
@@ -34,7 +35,6 @@ def connected_events(graph: FlowFragmentGraph, event: OutEvent) -> List[InEvent]
 
 
 def infer_kind_from_graph(graph: FlowFragmentGraph) -> NodeKindInput:
-
     kind = NodeKindInput.FUNCTION
 
     for node in graph.nodes:

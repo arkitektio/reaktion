@@ -1,42 +1,25 @@
 import asyncio
-from lib2to3.pytree import Base
-from typing import Dict, Tuple
 from reaktion.agent import ReaktionAgent
-from rekuest.agents.errors import ProvisionException
 
-from rekuest.agents.stateful import StatefulAgent
 from rekuest.contrib.fakts.websocket_agent_transport import FaktsWebsocketAgentTransport
-from rekuest.postmans.utils import arkiuse
-from pydantic import Field
-from rekuest.actors.base import Actor
-from rekuest.agents.base import BaseAgent
 from rekuest.api.schema import (
     PortInput,
     DefinitionInput,
-    NodeFragment,
-    NodeKind,
     TemplateFragment,
     acreate_template,
     adelete_node,
     afind,
-    aget_provision,
-    get_template,
 )
-from rekuest.messages import Assignation, Provision
-from rekuest.postmans.utils import ReservationContract
 from fakts.fakts import Fakts
 from fluss.api.schema import (
-    ArgNodeFragment,
     FlowFragment,
-    KwargNodeFragment,
-    ReturnNodeFragment,
+    LocalNodeFragment,
 )
 from rekuest.widgets import SliderWidget, StringWidget
 from arkitekt.apps.fluss import FlussApp
 from arkitekt.apps.unlok import UnlokApp
 from arkitekt.apps.rekuest import ArkitektRekuest, RekuestApp
 from reaktion.utils import infer_kind_from_graph
-from arkitekt.apps import Arkitekt
 from fakts.grants.remote.device_code import DeviceCodeGrant
 from fakts.fakts import Fakts
 from fakts.grants import CacheGrant
@@ -46,9 +29,6 @@ from herre.grants.fakts import FaktsGrant
 from fakts.grants.remote import Manifest
 from fakts.discovery import StaticDiscovery
 from herre import Herre
-from arkitekt.apps.fluss import ConnectedFluss
-import logging
-from rich.logging import RichHandler
 
 
 class ConnectedApp(FlussApp, RekuestApp, UnlokApp):
@@ -115,6 +95,13 @@ async def deploy_graph(
     print([x.dict(by_alias=True) for x in flow.graph.args])
     print([x.dict(by_alias=True) for x in flow.graph.returns])
 
+    # assert localnodes are in the definitionregistry
+    localNodes = [x for x in flow.graph.nodes if isinstance(x, LocalNodeFragment)]
+    for node in localNodes:
+        assert node.hash, f"LocalNode {node.name} must have a definition"
+        assert (
+            node.hash in app.rekuest.agent.nodeHashActorMap
+        ), f"LocalNode {node.name} is not registered with the agent of this instance"
 
     args = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.args]
     returns = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.returns]
@@ -183,5 +170,4 @@ async def main():
 
 
 if __name__ == "__main__":
-
     asyncio.run(main())

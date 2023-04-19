@@ -1,7 +1,7 @@
 import asyncio
-from typing import List, Tuple
+from typing import List
 from reaktion.atoms.combination.base import CombinationAtom
-from reaktion.events import EventType, OutEvent, Returns
+from reaktion.events import EventType, OutEvent
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,12 +22,12 @@ class ChunkAtom(CombinationAtom):
                             type=EventType.ERROR,
                             value=event.value,
                             source=self.node.id,
+                            caused_by=[event.current_t],
                         )
                     )
                     break
 
                 if event.type == EventType.NEXT:
-
                     assert (
                         len(event.value) == 1
                     ), "ChunkAtom only supports flattening one value"
@@ -48,6 +48,7 @@ class ChunkAtom(CombinationAtom):
                                     type=EventType.NEXT,
                                     value=[value],
                                     source=self.node.id,
+                                    caused_by=[event.current_t],
                                 )
                             )
 
@@ -69,6 +70,7 @@ class ChunkAtom(CombinationAtom):
                             type=EventType.COMPLETE,
                             value=[],
                             source=self.node.id,
+                            caused_by=[event.current_t],
                         )
                     )
                     break

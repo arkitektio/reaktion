@@ -1,6 +1,5 @@
 import asyncio
 from typing import List, Tuple
-import uuid
 from rekuest.api.schema import AssignationLogLevel
 from reaktion.atoms.combination.base import CombinationAtom
 from reaktion.events import EventType, OutEvent, Returns
@@ -72,5 +71,5 @@ class ZipAtom(CombinationAtom):
             logger.warning(f"Atom {self.node} is getting cancelled")
             raise e
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Atom {self.node} excepted")

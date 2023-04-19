@@ -1,4 +1,3 @@
-import json
 import pytest
 from fluss.api.schema import (
     FlowFragment,
@@ -7,13 +6,10 @@ from fluss.api.schema import (
     SnapshotMutationSnapshot,
     TrackMutationTrack,
 )
-import yaml
-from .utils import build_relative
 from rekuest.messages import Provision, Assignation
 from rekuest.agents.transport.protocols.agent_json import *
 from reaktion.actor import FlowActor
 from rekuest.agents.transport.mock import MockAgentTransport
-from .flows import retrieve_chunk_flow
 from rekuest.postmans.utils import mockuse
 
 
@@ -36,7 +32,7 @@ async def retrieve_chunk_contractor(node: ArkitektNodeFragment, provision: Provi
 async def test_provide_actor(retrieve_chunk_flow: FlowFragment):
 
     provision = Provision(provision=1, guardian=1, user=1)
-    assignation = Assignation(assignation=1, user=1, provision=1, args=[])
+    Assignation(assignation=1, user=1, provision=1, args=[])
 
     tracki = 0
     runi = 0
@@ -78,7 +74,7 @@ async def test_provide_actor(retrieve_chunk_flow: FlowFragment):
             assert x.status == ProvisionStatus.ACTIVE
 
             for i in actor.contracts.values():
-                assert i.active == True
+                assert i.active is True
 
 
 @pytest.mark.asyncio
@@ -132,7 +128,7 @@ async def test_provide_assign(retrieve_chunk_flow: FlowFragment):
             assert x.status == ProvisionStatus.ACTIVE
 
             for i in actor.contracts.values():
-                assert i.active == True
+                assert i.active is True
 
             await actor.process(assignation)
 

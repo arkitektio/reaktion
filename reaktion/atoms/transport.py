@@ -4,7 +4,7 @@ from reaktion.events import OutEvent
 
 
 class AtomTransport(BaseModel):
-    queue: asyncio.Queue[OutEvent]
+    queue: asyncio.Queue
 
     async def put(self, event: OutEvent):
         await self.queue.put(event)

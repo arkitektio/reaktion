@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "reaktion"
-version = "0.1.11"
+version = "0.1.14"
 description = ""
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 

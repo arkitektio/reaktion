@@ -1,5 +1,5 @@
 import asyncio
-from reaktion.events import InEvent, OutEvent, Returns, EventType
+from reaktion.events import OutEvent, Returns, EventType
 from reaktion.atoms.base import Atom
 import logging
 
@@ -31,6 +31,7 @@ class MapAtom(Atom):
                                 type=EventType.NEXT,
                                 value=value,
                                 source=self.node.id,
+                                caused_by=[event.current_t],
                             )
                         )
                     except Exception as e:
@@ -41,6 +42,7 @@ class MapAtom(Atom):
                                 type=EventType.ERROR,
                                 source=self.node.id,
                                 value=e,
+                                caused_by=[event.current_t],
                             )
                         )
                         break
@@ -52,6 +54,7 @@ class MapAtom(Atom):
                             handle="return_0",
                             type=EventType.COMPLETE,
                             source=self.node.id,
+                            caused_by=[event.current_t],
                         )
                     )
                     break  # Everything left of us is done, so we can shut down as well
@@ -63,6 +66,7 @@ class MapAtom(Atom):
                             type=EventType.ERROR,
                             value=event.value,
                             source=self.node.id,
+                            caused_by=[event.current_t],
                         )
                     )
                     break
@@ -97,6 +101,7 @@ class MergeMapAtom(Atom):
                                     type=EventType.NEXT,
                                     value=value,
                                     source=self.node.id,
+                                    caused_by=[event.current_t],
                                 )
                             )
                     except Exception as e:
@@ -107,6 +112,7 @@ class MergeMapAtom(Atom):
                                 type=EventType.ERROR,
                                 source=self.node.id,
                                 value=e,
+                                caused_by=[event.current_t],
                             )
                         )
                         break
@@ -118,6 +124,7 @@ class MergeMapAtom(Atom):
                             handle="return_0",
                             type=EventType.COMPLETE,
                             source=self.node.id,
+                            caused_by=[event.current_t],
                         )
                     )
                     break  # Everything left of us is done, so we can shut down as well
@@ -129,6 +136,7 @@ class MergeMapAtom(Atom):
                             type=EventType.ERROR,
                             value=event.value,
                             source=self.node.id,
+                            caused_by=[event.current_t],
                         )
                     )
                     break

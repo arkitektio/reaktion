@@ -1,33 +1,42 @@
-import asyncio
 import logging
-from typing import Callable, Dict, Optional, Protocol, runtime_checkable
-
+from typing import Callable, Dict
+import asyncio
 from pydantic import BaseModel, Field
 
-from fluss.api.schema import (ArgNodeFragment, ArkitektNodeFragment,
-                              FlowFragment, KwargNodeFragment,
-                              ReactiveNodeFragment, ReturnNodeFragment,
-                              RunMutationStart, aget_flow, arun, arunlog,
-                              asnapshot, atrack)
-from koil.types import Contextual
+from fluss.api.schema import (
+    ArgNodeFragment,
+    ArkitektNodeFragment,
+    FlowFragment,
+    KwargNodeFragment,
+    LocalNodeFragment,
+    ReactiveNodeFragment,
+    ReturnNodeFragment,
+    arun,
+    asnapshot,
+    atrack,
+)
 from reaktion.atoms.transport import AtomTransport
+
+print(asyncio.Queue)
 from reaktion.atoms.utils import atomify
-from reaktion.contractors import (NodeContractor, arkicontractor,
-                                  localcontractor)
+from reaktion.contractors import NodeContractor, arkicontractor, localcontractor
 from reaktion.events import EventType, InEvent, OutEvent
+
 from reaktion.utils import connected_events
 from rekuest.actors.base import Actor
-from rekuest.actors.functional import AsyncFuncActor, AsyncGenActor
-from rekuest.api.schema import (AssignationLogLevel, AssignationStatus,
-                                NodeFragment, NodeKind, ProvisionFragment,
-                                ProvisionStatus, ReservationFragment,
-                                ReservationStatus, TemplateFragment, afind,
-                                aget_template)
+from rekuest.api.schema import (
+    AssignationStatus,
+    ProvisionStatus,
+    ReservationFragment,
+    ReservationStatus,
+)
 from rekuest.messages import Assignation, Provision
-from rekuest.postmans.utils import (ReservationContract, RPCContract, arkiuse,
-                                    localuse)
+from rekuest.postmans.utils import RPCContract
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+print(asyncio)
 
 
 class NodeState(BaseModel):
@@ -37,12 +46,15 @@ class NodeState(BaseModel):
 class FlowActor(Actor):
     is_generator: bool = False
     flow: FlowFragment
+    agent: Any
     contracts: Dict[str, RPCContract] = Field(default_factory=dict)
+    local_contracts: Dict[str, RPCContract] = Field(default_factory=dict)
     expand_inputs: bool = False
     shrink_outputs: bool = False
     provided = False
     is_generator: bool = False
-    nodeContractor: NodeContractor = arkicontractor
+    arkitekt_contractor: NodeContractor = arkicontractor
+    local_contractor: NodeContractor = localcontractor
 
     # Functionality for running the flow
 
@@ -65,28 +77,35 @@ class FlowActor(Actor):
     async def on_provide(self, provision: Provision):
         self._lock = asyncio.Lock()
 
-        argNode = [x for x in self.flow.graph.nodes if isinstance(x, ArgNodeFragment)][
-            0
-        ]
+        [x for x in self.flow.graph.nodes if isinstance(x, ArgNodeFragment)][0]
 
-        kwargNode = [
-            x for x in self.flow.graph.nodes if isinstance(x, KwargNodeFragment)
-        ][0]
+        [x for x in self.flow.graph.nodes if isinstance(x, KwargNodeFragment)][0]
 
-        returnNode = [
-            x for x in self.flow.graph.nodes if isinstance(x, ReturnNodeFragment)
-        ][0]
+        [x for x in self.flow.graph.nodes if isinstance(x, ReturnNodeFragment)][0]
 
         arkitektNodes = [
             x for x in self.flow.graph.nodes if isinstance(x, ArkitektNodeFragment)
         ]
 
+        localNodes = [
+            x for x in self.flow.graph.nodes if isinstance(x, LocalNodeFragment)
+        ]
+
         self.contracts = {
-            node.id: await self.nodeContractor(node, self)
+            node.id: await self.arkitekt_contractor(node, self)
             for node in arkitektNodes
         }
 
+        self.local_contracts = {
+            node.id: await self.local_contractor(node, self) for node in localNodes
+        }
+
+        print("Entering Contracts")
         futures = [contract.aenter() for contract in self.contracts.values()]
+        await asyncio.gather(*futures)
+
+        print("Entering Local Contracts")
+        futures = [contract.aenter() for contract in self.local_contracts.values()]
         await asyncio.gather(*futures)
 
         self.provided = True
@@ -112,7 +131,6 @@ class FlowActor(Actor):
                     )
 
     async def on_assign(self, assignation: Assignation):
-
         run = await self.run_mutation(
             assignation=assignation.assignation, flow=self.flow
         )
@@ -131,9 +149,7 @@ class FlowActor(Actor):
             argNode = [
                 x for x in self.flow.graph.nodes if isinstance(x, ArgNodeFragment)
             ][0]
-            kwargNode = [
-                x for x in self.flow.graph.nodes if isinstance(x, KwargNodeFragment)
-            ][0]
+            [x for x in self.flow.graph.nodes if isinstance(x, KwargNodeFragment)][0]
             returnNode = [
                 x for x in self.flow.graph.nodes if isinstance(x, ReturnNodeFragment)
             ][0]
@@ -143,6 +159,7 @@ class FlowActor(Actor):
                 for x in self.flow.graph.nodes
                 if isinstance(x, ArkitektNodeFragment)
                 or isinstance(x, ReactiveNodeFragment)
+                or isinstance(x, LocalNodeFragment)
             ]
 
             await self.aass_log(assignation.assignation, "Set up the graph")
@@ -153,33 +170,39 @@ class FlowActor(Actor):
 
             atoms = {
                 x.id: self.atomifier(
-                    x, atomtransport, self.contracts, assignation, alog=ass_log
+                    x,
+                    atomtransport,
+                    self.contracts,
+                    self.local_contracts,
+                    assignation,
+                    alog=ass_log,
                 )
                 for x in participatingNodes
             }
 
             await self.aass_log(assignation.assignation, "Atomification complete")
 
+            print("Enterying ")
             await asyncio.gather(*[atom.aenter() for atom in atoms.values()])
+            print("Enterying complete")
 
             tasks = [asyncio.create_task(atom.start()) for atom in atoms.values()]
-
-
-
 
             stream = argNode.outstream[0]
             value = [assignation.args[key] for key, index in enumerate(stream)]
 
             initial_event = OutEvent(
-                handle=f"return_0",
+                handle="return_0",
                 type=EventType.NEXT,
                 source=argNode.id,
                 value=value,
+                caused_by=[t],
             )
             initial_done_event = OutEvent(
-                handle=f"return_0",
+                handle="return_0",
                 type=EventType.COMPLETE,
                 source=argNode.id,
+                caused_by=[t],
             )
 
             logger.info(f"Putting initial event {initial_event}")
@@ -187,35 +210,34 @@ class FlowActor(Actor):
             await event_queue.put(initial_event)
             await event_queue.put(initial_done_event)
 
-
-
-
             edge_targets = [e.target for e in self.flow.graph.edges]
-            nodes_without_instream = [x for x in participatingNodes if len(x.instream[0]) == 0 and x.id not in edge_targets]
-
+            nodes_without_instream = [
+                x
+                for x in participatingNodes
+                if len(x.instream[0]) == 0 and x.id not in edge_targets
+            ]
 
             logger.error(f"Nodes without instream: {nodes_without_instream}")
             for node in nodes_without_instream:
-
                 assert node.id in atoms, "Atom not found. Should not happen."
                 atom = atoms[node.id]
 
                 initial_event = InEvent(
-                        target=node.id,
-                        handle="arg_0",
-                        type=EventType.NEXT,
-                        value=[],
+                    target=node.id,
+                    handle="arg_0",
+                    type=EventType.NEXT,
+                    value=[],
+                    current_t=t,
                 )
                 done_event = InEvent(
-                        target=node.id,
-                        handle="arg_0",
-                        type=EventType.COMPLETE,
+                    target=node.id,
+                    handle="arg_0",
+                    type=EventType.COMPLETE,
+                    current_t=t,
                 )
 
                 await atom.put(initial_event)
                 await atom.put(done_event)
-
-
 
             complete = False
 
@@ -233,6 +255,7 @@ class FlowActor(Actor):
                     run=run,
                     source=event.source,
                     handle=event.handle,
+                    caused_by=event.caused_by,
                     value=event.value
                     if event.value and not isinstance(event.value, Exception)
                     else str(event.value),
@@ -241,14 +264,18 @@ class FlowActor(Actor):
                 )
                 state[event.source] = track.id
 
-                t += 1
+                # We tracked the events and proceed
 
                 if t % 3 == 0:
                     await self.snapshot_mutation(
                         run=run, events=list(state.values()), t=t
                     )
 
-                spawned_events = connected_events(self.flow.graph, event)
+                # Creat new events with the new timepoint
+                spawned_events = connected_events(self.flow.graph, event, t)
+                # Increment timepoint
+                t += 1
+                # needs to be the old one for now
                 if not spawned_events:
                     logger.warning(f"No events spawned from {event}")
 
@@ -256,7 +283,6 @@ class FlowActor(Actor):
                     logger.info(f"-> {spawned_event}")
 
                     if spawned_event.target == returnNode.id:
-
                         if spawned_event.type == EventType.NEXT:
                             returns = spawned_event.value
                             if self.is_generator:
@@ -295,8 +321,7 @@ class FlowActor(Actor):
 
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        except asyncio.CancelledError as e:
-
+        except asyncio.CancelledError:
             for task in tasks:
                 task.cancel()
 
@@ -324,6 +349,5 @@ class FlowActor(Actor):
             )
 
     async def on_unprovide(self):
-
         for contract in self.contracts.values():
             await contract.aexit()

@@ -1,12 +1,10 @@
-import asyncio
 from typing import Any, List, Optional
 from rekuest.api.schema import AssignationLogLevel
 from rekuest.messages import Assignation
 from rekuest.postmans.utils import ReservationContract
 from fluss.api.schema import ArkitektNodeFragment
-from reaktion.atoms.generic import MapAtom, MergeMapAtom
+from reaktion.atoms.generic import MapAtom
 from reaktion.events import Returns
-import logging
 
 
 class TemplateMapAtom(MapAtom):

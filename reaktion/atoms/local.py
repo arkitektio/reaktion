@@ -1,11 +1,6 @@
-import asyncio
-
-print(asyncio.Queue)
 from typing import Any, List, Optional
 from rekuest.postmans.utils import RPCContract
-
-from fluss.api.schema import ArkitektNodeFragment
-
+from fluss.api.schema import LocalNodeFragment
 from reaktion.atoms.generic import MapAtom, MergeMapAtom
 from reaktion.events import Returns
 import logging
@@ -13,8 +8,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class ArkitektMapAtom(MapAtom):
-    node: ArkitektNodeFragment
+class LocalMapAtom(MapAtom):
+    node: LocalNodeFragment
     contract: RPCContract
 
     async def map(self, args: Returns) -> Optional[List[Any]]:
@@ -31,8 +26,8 @@ class ArkitektMapAtom(MapAtom):
         # return await self.contract.aassign(*args)
 
 
-class ArkitektMergeMapAtom(MergeMapAtom):
-    node: ArkitektNodeFragment
+class LocalMergeMapAtom(MergeMapAtom):
+    node: LocalNodeFragment
     contract: RPCContract
 
     async def merge_map(self, args: Returns) -> Optional[List[Any]]:

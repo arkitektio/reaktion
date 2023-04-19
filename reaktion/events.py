@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union, Dict, List, Tuple, Any
+from typing import List, Tuple, Union, List, Tuple, Any
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 
@@ -23,6 +23,8 @@ class InEvent(BaseModel):
         None, description="The value of the event (null, exception or any"
     )
     """ The attached value of the event"""
+    current_t: int
+    """ The current (in loop) time of the event"""
 
     @validator("handle")
     def validate_handle(cls, v):
@@ -52,6 +54,7 @@ class OutEvent(BaseModel):
     value: Union[Exception, Returns] = Field(
         None, description="The value of the event (null, exception or any"
     )
+    caused_by: List[int]
     """ The attached value of the event"""
 
     @validator("handle")
@@ -69,17 +72,18 @@ class OutEvent(BaseModel):
         return v
 
     def to_state(self):
-
         if self.value:
-            value  = self.value if not isinstance(self.value, Exception) else str(self.value)
+            value = (
+                self.value if not isinstance(self.value, Exception) else str(self.value)
+            )
         else:
             value = None
-        
+
         return {
             "source": self.source,
             "handle": self.handle,
             "type": self.type,
-            "value": value
+            "value": value,
         }
 
     class Config:

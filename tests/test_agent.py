@@ -1,4 +1,3 @@
-import json
 import pytest
 from fluss.api.schema import (
     FlowFragment,
@@ -7,13 +6,10 @@ from fluss.api.schema import (
     SnapshotMutationSnapshot,
     TrackMutationTrack,
 )
-import yaml
-from .utils import build_relative
 from rekuest.messages import Provision, Assignation
 from rekuest.agents.transport.protocols.agent_json import *
 from reaktion.actor import FlowActor
 from rekuest.agents.transport.mock import MockAgentTransport
-from .flows import add_three_flow
 from rekuest.postmans.utils import mockuse
 
 
@@ -33,7 +29,7 @@ async def add_three_flow_contractor(node: ArkitektNodeFragment, provision: Provi
 async def test_provide_actor(add_three_flow: FlowFragment):
 
     provision = Provision(provision=1, guardian=1, user=1)
-    assignation = Assignation(assignation=1, user=1, provision=1, args=[])
+    Assignation(assignation=1, user=1, provision=1, args=[])
 
     tracki = 0
     runi = 0
@@ -74,7 +70,7 @@ async def test_provide_actor(add_three_flow: FlowFragment):
             assert x.status == ProvisionStatus.ACTIVE
 
             for i in actor.contracts.values():
-                assert i.active == True
+                assert i.active is True
 
 
 @pytest.mark.asyncio
@@ -127,7 +123,7 @@ async def test_provide_assign(add_three_flow: FlowFragment):
             assert x.status == ProvisionStatus.ACTIVE
 
             for i in actor.contracts.values():
-                assert i.active == True
+                assert i.active is True
 
             await actor.process(assignation)
             x = await transport.areceive(timeout=1)
