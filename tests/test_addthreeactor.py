@@ -27,7 +27,6 @@ async def add_three_flow_contractor(node: ArkitektNodeFragment, provision: Provi
 @pytest.mark.asyncio
 @pytest.mark.actor
 async def test_provide_actor(add_three_flow: FlowFragment):
-
     provision = Provision(provision=1, guardian=1, user=1)
     Assignation(assignation=1, user=1, provision=1, args=[])
 
@@ -53,7 +52,6 @@ async def test_provide_actor(add_three_flow: FlowFragment):
         return SnapshotMutationSnapshot(id=snapshoti, run=run, events=events, t=t)
 
     async with MockAgentTransport() as transport:
-
         async with FlowActor(
             provision=provision,
             transport=transport,
@@ -63,7 +61,6 @@ async def test_provide_actor(add_three_flow: FlowFragment):
             snapshot_mutation=amocksnapshot,
             track_mutation=atrackrun,
         ) as actor:
-
             await actor.provide()
             x = await transport.areceive(timeout=1)
             assert isinstance(x, ProvisionChangedMessage)
@@ -76,7 +73,6 @@ async def test_provide_actor(add_three_flow: FlowFragment):
 @pytest.mark.asyncio
 @pytest.mark.actor
 async def test_provide_assign(add_three_flow: FlowFragment):
-
     provision = Provision(provision=1, guardian=1, user=1)
     assignation = Assignation(assignation=1, user=1, provision=1, args=[2])
 
@@ -106,7 +102,6 @@ async def test_provide_assign(add_three_flow: FlowFragment):
         return SnapshotMutationSnapshot(id=snapshoti, run=run, events=events, t=t)
 
     async with MockAgentTransport() as transport:
-
         async with FlowActor(
             provision=provision,
             transport=transport,
@@ -116,7 +111,6 @@ async def test_provide_assign(add_three_flow: FlowFragment):
             snapshot_mutation=amocksnapshot,
             track_mutation=atrackrun,
         ) as actor:
-
             await actor.provide()
             x = await transport.areceive(timeout=1)
             assert isinstance(x, ProvisionChangedMessage)

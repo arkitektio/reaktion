@@ -7,6 +7,7 @@ from fluss.api.schema import FlowNodeCommonsFragmentBase
 from reaktion.atoms.errors import AtomQueueFull
 from reaktion.events import EventType, InEvent, OutEvent
 import logging
+from rekuest.actors.types import Assignment
 from reaktion.atoms.transport import AtomTransport
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ class Atom(BaseModel):
     alog: Optional[Callable[[str, AssignationLogLevel, str], Awaitable[None]]] = Field(
         exclude=True
     )
-    assignation: Assignation
+    assignment: Assignment
 
     _private_queue: asyncio.Queue[InEvent] = None
 

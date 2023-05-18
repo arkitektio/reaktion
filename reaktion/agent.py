@@ -1,8 +1,15 @@
 from reaktion.actor import FlowActor
 from rekuest.agents.errors import ProvisionException
-from rekuest.agents.stateful import StatefulAgent
+from rekuest.agents.base import BaseAgent
+
 import logging
+from rekuest.register import register_func
 from rekuest.actors.base import Actor
+from rekuest.actors.types import Passport, Assignment
+from rekuest.actors.transport.local_transport import (
+    AgentActorTransport,
+    AgentActorAssignTransport,
+)
 from fluss.api.schema import aget_flow
 from rekuest.api.schema import aget_template, NodeKind
 from rekuest.messages import Provision
@@ -20,50 +27,85 @@ from fakts.fakts import Fakts
 from fluss.api.schema import (
     FlowFragment,
     LocalNodeFragment,
+    GraphNodeFragment,
 )
 from reaktion.utils import infer_kind_from_graph
 from rekuest.widgets import SliderWidget, StringWidget
+from rekuest.structures.default import get_default_structure_registry
+from rekuest.structures.registry import StructureRegistry
+from pydantic import BaseModel, Field
+from .utils import convert_flow_to_definition
 
 logger = logging.getLogger(__name__)
 
 
-class ReaktionAgent(StatefulAgent):
-    async def aspawn_actor(self, prov: Provision) -> Actor:
-        """Spawns an Actor from a Provision"""
+class ReaktionAgent(BaseAgent):
+    structure_registry: StructureRegistry = Field(
+        default_factory=get_default_structure_registry
+    )
+
+    async def aspawn_actor_from_provision(self, provision: Provision) -> Actor:
+        """Spawns an Actor from a Provision. This function closely mimics the
+        spawining protocol within an actor. But maps template"""
+
         try:
-            actor_builder = self._templateActorBuilderMap[prov.template]
-            actor = actor_builder(provision=prov, transport=self.transport)
-        except KeyError:
-            try:
-                x = await aget_template(prov.template)
-                assert "flow" in x.params, "Template is not a flow"
+            interface = self.template_interface_map[provision.template]
 
-                t = await aget_flow(id=x.params["flow"])
-                actor = FlowActor(
-                    provision=prov,
-                    transport=self.transport,
-                    agent=self,
-                    flow=t,
-                    is_generator=x.node.kind == NodeKind.GENERATOR,
-                )
+            actor_builder = self.definition_registry.get_builder_for_interface(
+                interface
+            )
+            definition = self.definition_registry.get_definition_for_interface(
+                interface
+            )
 
-            except Exception as e:
-                raise ProvisionException("No Actor Builders found for template") from e
+            passport = Passport(provision=provision.provision)
 
-        await actor.arun()
-        self.provisionActorMap[prov.provision] = actor
+            actor = actor_builder(
+                passport=passport,
+                transport=AgentActorTransport(
+                    passport=passport, agent_transport=self.transport
+                ),
+                definition=definition,
+                definition_registry=self.definition_registry,
+                collector=self.collector,
+            )
+
+        except KeyError as e:
+            x = await aget_template(provision.template)
+            assert "flow" in x.params, "Template is not a flow"
+
+            t = await aget_flow(id=x.params["flow"])
+
+            passport = Passport(provision=provision.provision)
+            actor = FlowActor(
+                flow=t,
+                is_generator=x.node.kind == NodeKind.GENERATOR,
+                passport=passport,
+                transport=AgentActorTransport(
+                    passport=passport, agent_transport=self.transport
+                ),
+                definition=x.node,
+                definition_registry=self.definition_registry,
+                collector=self.collector,
+            )
+
+        await actor.arun()  # TODO: Maybe move this outside?
+        self.managed_actors[passport.id] = actor
+        self.provision_passport_map[provision.provision] = passport
         return actor
 
     async def aregister_definitions(self):
-        self.definition_registry.register(
+        register_func(
             self.deploy_graph,
-            structure_registry=self.definition_registry.structure_registry,
+            structure_registry=self.structure_registry,
+            definition_registry=self.definition_registry,
             widgets={"description": StringWidget(as_paragraph=True)},
             interfaces=["fluss:deploy"],
         )
-        self.definition_registry.register(
+        register_func(
             self.undeploy_graph,
-            structure_registry=self.definition_registry.structure_registry,
+            structure_registry=self.structure_registry,
+            definition_registry=self.definition_registry,
             interfaces=["fluss:undeploy"],
         )
 
@@ -89,33 +131,10 @@ class ReaktionAgent(StatefulAgent):
         """
         assert flow.name, "Graph must have a Name in order to be deployed"
 
-        print([x.dict(by_alias=True) for x in flow.graph.args])
-        print([x.dict(by_alias=True) for x in flow.graph.returns])
-
-        # assert localnodes are in the definitionregistry
-        localNodes = [x for x in flow.graph.nodes if isinstance(x, LocalNodeFragment)]
-        for node in localNodes:
-            assert node.hash, f"LocalNode {node.name} must have a definition"
-            assert (
-                node.hash in self.nodeHashActorMap
-            ), f"LocalNode {node.name} is not registered with the agent of this instance"
-
-        args = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.args]
-        returns = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.returns]
-
         template = await acreate_template(
-            DefinitionInput(
-                name=name or flow.workspace.name,
-                interface=f"flow-{flow.id}",
-                kind=infer_kind_from_graph(flow.graph),
-                args=args,
-                returns=returns,
-                description=description,
-                interfaces=[
-                    "workflow",
-                    f"diagram:{flow.workspace.id}",
-                    f"flow:{flow.id}",
-                ],
+            interface=f"flow:{flow.id}",
+            definition=convert_flow_to_definition(
+                flow, name=name, description=description
             ),
             instance_id=self.instance_id,
             params={"flow": flow.id},

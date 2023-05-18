@@ -1,10 +1,14 @@
 from typing import List
-from rekuest.api.schema import NodeKindInput
+from rekuest.api.schema import NodeKindInput, DefinitionInput, PortInput
 from fluss.api.schema import (
     FlowFragmentGraph,
     FlowNodeFragmentBaseArkitektNode,
     FlowNodeFragmentBaseReactiveNode,
     ReactiveImplementationModelInput,
+    FlowFragment,
+    LocalNodeFragment,
+    ArkitektNodeFragment,
+    GraphNodeFragment,
 )
 from .events import OutEvent, InEvent
 import pydantic
@@ -48,3 +52,37 @@ def infer_kind_from_graph(graph: FlowFragmentGraph) -> NodeKindInput:
                 break
 
     return kind
+
+
+def convert_flow_to_definition(
+    flow: FlowFragment,
+    name: str = None,
+    description: str = None,
+) -> DefinitionInput:
+    print([x.dict(by_alias=True) for x in flow.graph.args])
+    print([x.dict(by_alias=True) for x in flow.graph.returns])
+
+    # assert localnodes are in the definitionregistry
+    localNodes = [x for x in flow.graph.nodes if isinstance(x, LocalNodeFragment)]
+    graphNodes = [x for x in flow.graph.nodes if isinstance(x, GraphNodeFragment)]
+    assert len(graphNodes) == 0, "GraphNodes are not supported yet"
+
+    for node in localNodes:
+        assert node.hash, f"LocalNode {node.name} must have a definition"
+
+    args = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.args]
+    returns = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.returns]
+
+    return DefinitionInput(
+        name=name or flow.workspace.name,
+        kind=infer_kind_from_graph(flow.graph),
+        args=args,
+        returns=returns,
+        portGroups=[],
+        description=description,
+        interfaces=[
+            "workflow",
+            f"diagram:{flow.workspace.id}",
+            f"flow:{flow.id}",
+        ],
+    )

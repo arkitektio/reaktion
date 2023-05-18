@@ -1,18 +1,24 @@
 import asyncio
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from rekuest.api.schema import AssignationLogLevel
 from reaktion.atoms.combination.base import CombinationAtom
-from reaktion.events import EventType, OutEvent, Returns
+from reaktion.events import EventType, OutEvent, InEvent
 import logging
+from pydantic import Field
+from reaktion.atoms.helpers import index_for_handle
+import functools
 
 logger = logging.getLogger(__name__)
 
 
 class ZipAtom(CombinationAtom):
-    state: List[Returns] = [None, None]
-    complete: Tuple[bool, bool] = (False, False)
+    state: List[Optional[InEvent]] = Field(default_factory=lambda: [None, None])
+    complete: List[Optional[InEvent]] = Field(default_factory=lambda: [None, None])
 
     async def run(self):
+        self.state = list(map(lambda x: None, self.node.instream))
+        self.complete = list(map(lambda x: None, self.node.instream))
+
         try:
             while True:
                 event = await self.get()
@@ -28,44 +34,36 @@ class ZipAtom(CombinationAtom):
                     )
                     break
 
-                if event.handle == "arg_0":
-                    if event.type == EventType.COMPLETE:
-                        self.complete = (True, self.complete[1])
-                    else:
-                        self.state = (event, self.state[1])
-
-                if event.handle == "arg_1":
-                    if event.type == EventType.COMPLETE:
-                        self.complete = (self.complete[0], True)
-                    else:
-                        self.state = (self.state[0], event)
-
-                if self.complete == (True, True):
-                    if self.alog:
-                        await self.alog(
-                            self.node.id,
-                            AssignationLogLevel.INFO,
-                            "ZipAtom: Complete",
+                if event.type == EventType.COMPLETE:
+                    self.complete[index_for_handle(event.handle)] = event
+                    if all(map(lambda x: x is not None, self.state)):
+                        await self.transport.put(
+                            OutEvent(
+                                handle="return_0",
+                                type=EventType.COMPLETE,
+                                source=self.node.id,
+                                caused_by=map(lambda x: x.current_t, self.complete),
+                            )
                         )
-                    await self.transport.put(
-                        OutEvent(
-                            handle="return_0",
-                            type=EventType.COMPLETE,
-                            source=self.node.id,
-                        )
-                    )
-                    break  # Everything left of us is done, so we can shut down as well
+                        break
 
-                if self.state[0] is not None and self.state[1] is not None:
-                    await self.transport.put(
-                        OutEvent(
-                            handle="return_0",
-                            type=EventType.NEXT,
-                            value=self.state[0].value + self.state[1].value,
-                            source=self.node.id,
+                if event.type == EventType.NEXT:
+                    self.state[index_for_handle(event.handle)] = event
+                    if all(map(lambda x: x is not None, self.state)):
+                        print(self.state)
+                        await self.transport.put(
+                            OutEvent(
+                                handle="return_0",
+                                type=EventType.NEXT,
+                                source=self.node.id,
+                                value=functools.reduce(
+                                    lambda a, b: a + b.value, self.state, tuple()
+                                ),
+                                caused_by=map(lambda x: x.current_t, self.state),
+                            )
                         )
-                    )
-                    self.state = (None, None)
+                        # Reinitalizing
+                        self.state = list(map(lambda x: None, self.node.instream))
 
         except asyncio.CancelledError as e:
             logger.warning(f"Atom {self.node} is getting cancelled")

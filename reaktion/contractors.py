@@ -1,5 +1,5 @@
 from typing import Protocol, runtime_checkable
-from rekuest.postmans.utils import RPCContract, arkiuse, localuse, mockuse
+from rekuest.postmans.utils import RPCContract, arkiuse, mockuse, actoruse
 from fluss.api.schema import (
     ArkitektNodeFragment,
     FlowNodeFragmentBaseArkitektNode,
@@ -18,42 +18,33 @@ class NodeContractor(Protocol):
 
 
 async def arkicontractor(node: ArkitektNodeFragment, actor: Actor) -> RPCContract:
-    arkitekt_node = await afind(hash=node.hash)
-
     return arkiuse(
         binds=ReserveBindsInput(
             clients=node.binds.clients, templates=node.binds.templates
         )
         if node.binds
         else None,
-        definition=arkitekt_node,
+        hash=node.hash,
         postman=get_current_postman(),
-        structure_registry=get_current_structure_registry(),
-        provision=actor.provision.guardian,
-        shrink_inputs=False,
-        expand_outputs=False,
+        provision=actor.passport.provision,
         reference=node.id,
-        state_hook=actor.on_reservation_change,
+        state_hook=actor.on_contract_change,
     )  # No need to shrink inputs/outsputs for arkicontractors
 
 
 async def localcontractor(node: LocalNodeFragment, actor: Actor) -> RPCContract:
-    print("Creating local contractor node hash: ", node)
-    return localuse(
-        hash=node.hash,
-        agent=actor.agent,
-        structure_registry=get_current_structure_registry(),
-        shrink_inputs=False,
-        expand_outputs=False,
+    return actoruse(
+        interface=node.interface,
+        supervisor=actor,
         reference=node.id,
-        provision=actor.provision.provision,
-    )  # No need to shrink inputs/outputs for arkicontractors
+        state_hook=actor.on_contract_change,
+    )
 
 
 async def arkimockcontractor(node: ArkitektNodeFragment, actor: Actor) -> RPCContract:
     return mockuse(
         node=node,
-        provision=actor.provision.guardian,
+        provision=actor.passport.provision,
         shrink_inputs=False,
         shrink_outputs=False,
     )  # No need to shrink inputs/outputs for arkicontractors

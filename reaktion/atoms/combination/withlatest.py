@@ -6,22 +6,19 @@ from reaktion.events import EventType, OutEvent, InEvent
 import logging
 import functools
 from typing import Optional
+from pydantic import Field
 
 logger = logging.getLogger(__name__)
 
 
 class WithLatestAtom(CombinationAtom):
-    state: List[Optional[InEvent]] = [None, None]
-    complete: List[bool] = [None, None]
+    state: List[Optional[InEvent]] = Field(default_factory=lambda: [None, None])
 
     async def run(self):
         self.state = list(map(lambda x: None, self.node.instream))
-        self.complete = list(map(lambda x: False, self.node.instream))
-
         try:
             while True:
                 event = await self.get()
-                print("WithLatestAtom", event)
 
                 if event.type == EventType.ERROR:
                     await self.transport.put(
@@ -39,8 +36,6 @@ class WithLatestAtom(CombinationAtom):
                 print(streamIndex)
 
                 if event.type == EventType.COMPLETE:
-                    self.complete[streamIndex] = True
-
                     if streamIndex == 0:
                         await self.transport.put(
                             OutEvent(
@@ -55,19 +50,16 @@ class WithLatestAtom(CombinationAtom):
                 if event.type == EventType.NEXT:
                     self.state[streamIndex] = event
 
-                    if self.state[0] is not None and self.state[1] is not None:
+                    if all(map(lambda x: x is not None, self.state)):
                         await self.transport.put(
                             OutEvent(
                                 handle="return_0",
                                 type=EventType.NEXT,
                                 value=functools.reduce(
-                                    lambda a, b: a.value + b.value, self.state
+                                    lambda a, b: a + b.value, self.state, tuple()
                                 ),
                                 source=self.node.id,
-                                caused_by=[
-                                    self.state[0].current_t,
-                                    self.state[1].current_t,
-                                ],
+                                caused_by=map(lambda x: x.current_t, self.state),
                             )
                         )
 

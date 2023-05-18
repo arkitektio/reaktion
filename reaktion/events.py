@@ -54,7 +54,7 @@ class OutEvent(BaseModel):
     value: Union[Exception, Returns] = Field(
         None, description="The value of the event (null, exception or any"
     )
-    caused_by: List[int]
+    caused_by: Tuple[int, ...]
     """ The attached value of the event"""
 
     @validator("handle")
@@ -70,6 +70,17 @@ class OutEvent(BaseModel):
             )
 
         return v
+
+    @validator("value", pre=True)
+    def validate_value(cls, v, **kwargs):
+        if isinstance(v, Exception):
+            return v
+
+        return tuple(v)
+
+    @validator("caused_by", pre=True)
+    def validate_caused_by(cls, v, **kwargs):
+        return tuple(v)
 
     def to_state(self):
         if self.value:

@@ -11,9 +11,7 @@ from fluss.api.schema import (
 from rekuest.api.schema import NodeKind
 import json
 import pytest
-from fluss.api.schema import (
-    FlowFragment,
-)
+from fluss.api.schema import FlowFragment, Scope, StreamItemChildFragment
 from .utils import build_relative
 
 
@@ -31,11 +29,6 @@ def add_three_flow():
 
 
 @pytest.fixture(scope="session")
-def retrieve_chunk_flow():
-    return build_flow("flowjsons/retrieve_chunk_flow.json")
-
-
-@pytest.fixture(scope="session")
 def arkitekt_generator_node():
     return FlowNodeFragmentBaseArkitektNode(
         id=1,
@@ -48,8 +41,20 @@ def arkitekt_generator_node():
         allowLocal=False,
         defaults={},
         constream=[],
-        instream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
-        outstream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
+        instream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ]
+        ],
+        outstream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ]
+        ],
     )
 
 
@@ -66,8 +71,20 @@ def arkitekt_functional_node():
         allowLocal=False,
         defaults={},
         constream=[],
-        instream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
-        outstream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
+        instream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ]
+        ],
+        outstream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ]
+        ],
     )
 
 
@@ -79,8 +96,25 @@ def reactive_zip_node():
         implementation=ReactiveImplementationModelInput.ZIP,
         defaults={},
         constream=[],
-        instream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
-        outstream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
+        instream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ],
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ],
+        ],
+        outstream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ]
+        ],
     )
 
 
@@ -92,8 +126,25 @@ def reactive_withlatest_node():
         implementation=ReactiveImplementationModelInput.WITHLATEST,
         defaults={},
         constream=[],
-        instream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
-        outstream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
+        instream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ],
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ],
+        ],
+        outstream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ]
+        ],
     )
 
 
@@ -105,8 +156,26 @@ def reactive_chunk_node_with_defaults():
         implementation=ReactiveImplementationModelInput.CHUNK,
         defaults={"sleep": 1000},
         constream=[],
-        instream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
-        outstream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
+        instream=[
+            [
+                StreamItemFragment(
+                    key=1,
+                    kind=StreamKind.LIST,
+                    nullable=False,
+                    scope=Scope.GLOBAL,
+                    child=StreamItemChildFragment(
+                        key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                    ),
+                )
+            ]
+        ],
+        outstream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ]
+        ],
     )
 
 
@@ -118,8 +187,20 @@ def reactive_chunk_node():
         implementation=ReactiveImplementationModelInput.CHUNK,
         defaults={},
         constream=[],
-        instream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
-        outstream=[[StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)]],
+        instream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ]
+        ],
+        outstream=[
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ]
+        ],
     )
 
 
@@ -133,14 +214,32 @@ def reactive_split_node():
         constream=[],
         instream=[
             [
-                StreamItemFragment(key=1, kind=StreamKind.INT, nullable=True),
-                StreamItemFragment(key=1, kind=StreamKind.INT, nullable=True),
-                StreamItemFragment(key=1, kind=StreamKind.INT, nullable=True),
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=True, scope=Scope.GLOBAL
+                ),
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=True, scope=Scope.GLOBAL
+                ),
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=True, scope=Scope.GLOBAL
+                ),
             ]
         ],
         outstream=[
-            [StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)],
-            [StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)],
-            [StreamItemFragment(key=1, kind=StreamKind.INT, nullable=False)],
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ],
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ],
+            [
+                StreamItemFragment(
+                    key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
+                )
+            ],
         ],
     )

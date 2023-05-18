@@ -20,7 +20,7 @@ class LocalMapAtom(MapAtom):
             defaults[item.key] = arg
 
         returns = await self.contract.aassign(
-            **defaults, parent=self.assignation.assignation
+            args=[], kwargs=defaults, parent=self.assignment
         )
         return returns
         # return await self.contract.aassign(*args)
@@ -38,6 +38,6 @@ class LocalMergeMapAtom(MergeMapAtom):
             defaults[item.key] = arg
 
         async for r in self.contract.astream(
-            **defaults, parent=self.assignation.assignation
+            args=[], kwargs=defaults, parent=self.assignment
         ):
             yield r
