@@ -54,9 +54,6 @@ class ReaktionAgent(BaseAgent):
             actor_builder = self.definition_registry.get_builder_for_interface(
                 interface
             )
-            definition = self.definition_registry.get_definition_for_interface(
-                interface
-            )
 
             passport = Passport(provision=provision.provision)
 
@@ -65,7 +62,6 @@ class ReaktionAgent(BaseAgent):
                 transport=AgentActorTransport(
                     passport=passport, agent_transport=self.transport
                 ),
-                definition=definition,
                 definition_registry=self.definition_registry,
                 collector=self.collector,
             )

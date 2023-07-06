@@ -30,13 +30,14 @@ class ZipAtom(CombinationAtom):
                             type=EventType.ERROR,
                             value=event.value,
                             source=self.node.id,
+                            caused_by=[event.current_t],
                         )
                     )
                     break
 
                 if event.type == EventType.COMPLETE:
                     self.complete[index_for_handle(event.handle)] = event
-                    if all(map(lambda x: x is not None, self.state)):
+                    if all(map(lambda x: x is not None, self.complete)):
                         await self.transport.put(
                             OutEvent(
                                 handle="return_0",

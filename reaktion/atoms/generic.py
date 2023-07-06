@@ -1,5 +1,5 @@
 import asyncio
-from reaktion.events import OutEvent, Returns, EventType
+from reaktion.events import OutEvent, Returns, EventType, InEvent
 from reaktion.atoms.base import Atom
 import logging
 from pydantic import Field
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class MapAtom(Atom):
-    async def map(self, value: Returns) -> Returns:
+    async def map(self, event: InEvent) -> Returns:
         raise NotImplementedError("This needs to be implemented")
 
     async def run(self):
@@ -20,7 +20,7 @@ class MapAtom(Atom):
 
                 if event.type == EventType.NEXT:
                     try:
-                        result = await self.map(event.value)
+                        result = await self.map(event)
                         if result is None:
                             value = ()
                         elif isinstance(result, list) or isinstance(result, tuple):
@@ -81,17 +81,19 @@ class MapAtom(Atom):
 
 
 class MergeMapAtom(Atom):
-    async def merge_map(self, value: Returns) -> Returns:
+    async def merge_map(self, event: InEvent) -> Returns:
         raise NotImplementedError("This needs to be implemented")
 
     async def run(self):
         try:
             while True:
+                print("Waiting for new event")
                 event = await self.get()
+                print("Got new event")
 
                 if event.type == EventType.NEXT:
                     try:
-                        async for result in self.merge_map(event.value):
+                        async for result in self.merge_map(event):
                             if result is None:
                                 value = ()
                             elif isinstance(result, list) or isinstance(result, tuple):
@@ -107,6 +109,8 @@ class MergeMapAtom(Atom):
                                     caused_by=[event.current_t],
                                 )
                             )
+
+                        print("DONE")
                     except Exception as e:
                         logger.error(f"{self.node.id} map failed")
                         await self.transport.put(
@@ -154,7 +158,7 @@ class OrderedAtom(Atom):
     runningEvents: Dict[int, asyncio.Task] = Field(default_factory=dict)
     publish_queue: List[int] = Field(default_factory=list)
 
-    async def map(self, value: Returns) -> Returns:
+    async def map(self, event: InEvent) -> Returns:
         raise NotImplementedError("This needs to be implemented")
 
     async def check_ordered(self):
@@ -205,7 +209,7 @@ class OrderedAtom(Atom):
                 if event.type == EventType.NEXT:
                     self.publish_queue.append(event.current_t)
                     self.runningEvents[event.current_t] = asyncio.create_task(
-                        self.map(event.value)
+                        self.map(event)
                     )
 
                 if event.type == EventType.COMPLETE:
@@ -268,7 +272,7 @@ class OrderedAtom(Atom):
 class AsCompletedAtom(Atom):
     runningEvents: Dict[int, asyncio.Task] = Field(default_factory=dict)
 
-    async def map(self, value: Returns) -> Returns:
+    async def map(self, event: InEvent) -> Returns:
         raise NotImplementedError("This needs to be implemented")
 
     async def check_as_completed(self):
@@ -317,7 +321,7 @@ class AsCompletedAtom(Atom):
 
                 if event.type == EventType.NEXT:
                     self.runningEvents[event.current_t] = asyncio.create_task(
-                        self.map(event.value)
+                        self.map(event)
                     )
 
                 if event.type == EventType.COMPLETE:

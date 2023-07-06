@@ -11,6 +11,10 @@ class ChunkAtom(CombinationAtom):
     complete: List[bool] = [False, False]
 
     async def run(self):
+        iterations = self.set_values.get("iterations", 1)
+        sleep = self.set_values.get("sleep", None)
+        iteration_sleep = self.set_values.get("iteration_sleep", None)
+
         try:
             while True:
                 event = await self.get()
@@ -27,21 +31,20 @@ class ChunkAtom(CombinationAtom):
                     )
                     break
 
+                print(self.node)
+
                 if event.type == EventType.NEXT:
                     assert (
                         len(event.value) == 1
                     ), "ChunkAtom only supports flattening one value"
+
                     assert isinstance(
                         event.value[0], list
                     ), "ChunkAtom only supports flattening lists"
 
-                    if self.node.defaults:
-                        iterations = self.node.defaults.get("iterations", 1)
-                    else:
-                        iterations = 1
-
                     for i in range(iterations):
                         for value in event.value[0]:
+                            print("SENDING", value)
                             await self.transport.put(
                                 OutEvent(
                                     handle="return_0",
@@ -52,16 +55,13 @@ class ChunkAtom(CombinationAtom):
                                 )
                             )
 
-                            if self.node.defaults:
-                                sleep = self.node.defaults.get("sleep", None)
-                                print("Sleeping in interval", sleep)
-                                if sleep:
-                                    await asyncio.sleep(sleep * 0.001)
-
-                        if self.node.defaults:
-                            sleep = self.node.defaults.get("iterations_sleep", None)
                             if sleep:
                                 await asyncio.sleep(sleep * 0.001)
+
+                        if (
+                            iteration_sleep and i < iterations - 1
+                        ):  # don't sleep after last iteration
+                            await asyncio.sleep(iteration_sleep * 0.001)
 
                 if event.type == EventType.COMPLETE:
                     await self.transport.put(

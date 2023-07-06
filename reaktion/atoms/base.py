@@ -9,6 +9,7 @@ from reaktion.events import EventType, InEvent, OutEvent
 import logging
 from rekuest.actors.types import Assignment
 from reaktion.atoms.transport import AtomTransport
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class Atom(BaseModel):
     alog: Optional[Callable[[str, AssignationLogLevel, str], Awaitable[None]]] = Field(
         exclude=True
     )
+    globals: Dict[str, Any] = Field(default_factory=dict)
     assignment: Assignment
 
     _private_queue: asyncio.Queue[InEvent] = None
@@ -66,6 +68,14 @@ class Atom(BaseModel):
                     caused_by=[-1],
                 )
             )
+
+    @property
+    def set_values(self) -> Dict[str, Any]:
+        defaults = getattr(self.node, "defaults", {}) or {}
+        my_globals = self.globals or {}
+        print(my_globals, defaults)
+
+        return {**defaults, **my_globals}
 
     class Config:
         arbitrary_types_allowed = True

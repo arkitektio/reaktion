@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union, List, Tuple, Any
+from typing import List, Tuple, Union, List, Tuple, Any, Optional
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 
@@ -51,7 +51,7 @@ class OutEvent(BaseModel):
     """ The handle of the port that emitted the event"""
     type: EventType = Field(..., description="The event type")
     """ The type of event"""
-    value: Union[Exception, Returns] = Field(
+    value: Optional[Union[Exception, Returns]] = Field(
         None, description="The value of the event (null, exception or any"
     )
     caused_by: Tuple[int, ...]

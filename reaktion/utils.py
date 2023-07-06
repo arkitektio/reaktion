@@ -13,6 +13,7 @@ from fluss.api.schema import (
 from .events import OutEvent, InEvent
 import pydantic
 from .errors import FlowLogicError
+from devtools import debug
 
 
 def connected_events(
@@ -73,10 +74,17 @@ def convert_flow_to_definition(
     args = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.args]
     returns = [PortInput(**x.dict(by_alias=True)) for x in flow.graph.returns]
 
+    globals = [
+        PortInput(**glob.port.dict(by_alias=True)) for glob in flow.graph.globals
+    ]
+
+    debug(args)
+    debug(returns)
+
     return DefinitionInput(
         name=name or flow.workspace.name,
         kind=infer_kind_from_graph(flow.graph),
-        args=args,
+        args=args + globals,
         returns=returns,
         portGroups=[],
         description=description,

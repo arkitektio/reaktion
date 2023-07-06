@@ -10,9 +10,6 @@ from fluss.api.schema import (
     MapStrategy,
 )
 import asyncio
-
-print(asyncio.Queue)
-
 from reaktion.atoms.arkitekt import (
     ArkitektMapAtom,
     ArkitektMergeMapAtom,
@@ -21,19 +18,26 @@ from reaktion.atoms.arkitekt import (
 )
 from reaktion.atoms.local import LocalMapAtom, LocalMergeMapAtom
 from reaktion.atoms.transformation.chunk import ChunkAtom
+from reaktion.atoms.transformation.buffer_complete import BufferCompleteAtom
 from reaktion.atoms.transformation.split import SplitAtom
 from reaktion.atoms.combination.zip import ZipAtom
+from reaktion.atoms.transformation.filter import FilterAtom
 from reaktion.atoms.combination.withlatest import WithLatestAtom
+from reaktion.atoms.combination.gate import GateAtom
+from reaktion.atoms.filter.all import AllAtom
 from rekuest.postmans.utils import RPCContract
 from .base import Atom
 from .transport import AtomTransport
 from rekuest.actors.types import Assignment
+from typing import Any, Optional
+from reaktion.atoms.operations.math import MathAtom, operation_map
 
 
 def atomify(
     node: FlowNodeFragment,
     transport: AtomTransport,
-    contracts: Dict[str, RPCContract],
+    contract: Optional[RPCContract],
+    globals: Dict[str, Any],
     assignment: Assignment,
     alog: Callable[[Assignation, AssignationLogLevel, str], Awaitable[None]] = None,
 ) -> Atom:
@@ -42,33 +46,37 @@ def atomify(
             if node.map_strategy == MapStrategy.MAP:
                 return ArkitektMapAtom(
                     node=node,
-                    contract=contracts[node.id],
+                    contract=contract,
                     transport=transport,
                     assignment=assignment,
+                    globals=globals,
                     alog=alog,
                 )
             if node.map_strategy == MapStrategy.AS_COMPLETED:
                 return ArkitektAsCompletedAtom(
                     node=node,
-                    contract=contracts[node.id],
+                    contract=contract,
                     transport=transport,
                     assignment=assignment,
+                    globals=globals,
                     alog=alog,
                 )
             if node.map_strategy == MapStrategy.ORDERED:
                 return ArkitektAsCompletedAtom(
                     node=node,
-                    contract=contracts[node.id],
+                    contract=contract,
                     transport=transport,
                     assignment=assignment,
+                    globals=globals,
                     alog=alog,
                 )
         if node.kind == NodeKind.GENERATOR:
             return ArkitektMergeMapAtom(
                 node=node,
-                contract=contracts[node.id],
+                contract=contract,
                 transport=transport,
                 assignment=assignment,
+                globals=globals,
                 alog=alog,
             )
 
@@ -76,17 +84,19 @@ def atomify(
         if node.kind == NodeKind.FUNCTION:
             return LocalMapAtom(
                 node=node,
-                contract=contracts[node.id],
+                contract=contract,
                 transport=transport,
                 assignment=assignment,
+                globals=globals,
                 alog=alog,
             )
         if node.kind == NodeKind.GENERATOR:
             return LocalMergeMapAtom(
                 node=node,
-                contract=contracts[node.id],
+                contract=contract,
                 transport=transport,
                 assignment=assignment,
+                globals=globals,
                 alog=alog,
             )
 
@@ -96,6 +106,15 @@ def atomify(
                 node=node,
                 transport=transport,
                 assignment=assignment,
+                globals=globals,
+                alog=alog,
+            )
+        if node.implementation == ReactiveImplementationModelInput.FILTER:
+            return FilterAtom(
+                node=node,
+                transport=transport,
+                assignment=assignment,
+                globals=globals,
                 alog=alog,
             )
         if node.implementation == ReactiveImplementationModelInput.CHUNK:
@@ -103,6 +122,23 @@ def atomify(
                 node=node,
                 transport=transport,
                 assignment=assignment,
+                globals=globals,
+                alog=alog,
+            )
+        if node.implementation == ReactiveImplementationModelInput.GATE:
+            return GateAtom(
+                node=node,
+                transport=transport,
+                assignment=assignment,
+                globals=globals,
+                alog=alog,
+            )
+        if node.implementation == ReactiveImplementationModelInput.BUFFER_COMPLETE:
+            return BufferCompleteAtom(
+                node=node,
+                transport=transport,
+                assignment=assignment,
+                globals=globals,
                 alog=alog,
             )
         if node.implementation == ReactiveImplementationModelInput.WITHLATEST:
@@ -110,6 +146,7 @@ def atomify(
                 node=node,
                 transport=transport,
                 assignment=assignment,
+                globals=globals,
                 alog=alog,
             )
         if node.implementation == ReactiveImplementationModelInput.COMBINELATEST:
@@ -117,6 +154,7 @@ def atomify(
                 node=node,
                 transport=transport,
                 assignment=assignment,
+                globals=globals,
                 alog=alog,
             )
         if node.implementation == ReactiveImplementationModelInput.SPLIT:
@@ -124,6 +162,23 @@ def atomify(
                 node=node,
                 transport=transport,
                 assignment=assignment,
+                globals=globals,
+                alog=alog,
+            )
+        if node.implementation == ReactiveImplementationModelInput.ALL:
+            return AllAtom(
+                node=node,
+                transport=transport,
+                assignment=assignment,
+                globals=globals,
+                alog=alog,
+            )
+        if node.implementation in operation_map:
+            return MathAtom(
+                node=node,
+                transport=transport,
+                assignment=assignment,
+                globals=globals,
                 alog=alog,
             )
 

@@ -29,6 +29,11 @@ async def arkicontractor(node: ArkitektNodeFragment, actor: Actor) -> RPCContrac
         provision=actor.passport.provision,
         reference=node.id,
         state_hook=actor.on_contract_change,
+        assign_timeout=node.assign_timeout or None,
+        yield_timeout=node.yield_timeout or None,
+        reserve_timeout=node.reserve_timeout or None,
+        max_retries=node.max_retries,
+        retry_delay_ms=node.retry_delay,
     )  # No need to shrink inputs/outsputs for arkicontractors
 
 
@@ -38,6 +43,10 @@ async def localcontractor(node: LocalNodeFragment, actor: Actor) -> RPCContract:
         supervisor=actor,
         reference=node.id,
         state_hook=actor.on_contract_change,
+        assign_timeout=node.assign_timeout or None,
+        yield_timeout=node.yield_timeout or None,
+        max_retries=node.max_retries,
+        retry_delay_ms=node.retry_delay,
     )
 
 
