@@ -1,5 +1,5 @@
-from typing import List
-from rekuest.api.schema import NodeKindInput, DefinitionInput, PortInput
+from typing import List, Optional
+from rekuest.api.schema import NodeKindInput, DefinitionInput, PortInput, NodeKind
 from fluss.api.schema import (
     FlowFragmentGraph,
     FlowNodeFragmentBaseArkitektNode,
@@ -59,6 +59,7 @@ def convert_flow_to_definition(
     flow: FlowFragment,
     name: str = None,
     description: str = None,
+    kind: Optional[NodeKindInput] = None,
 ) -> DefinitionInput:
     print([x.dict(by_alias=True) for x in flow.graph.args])
     print([x.dict(by_alias=True) for x in flow.graph.returns])
@@ -83,7 +84,7 @@ def convert_flow_to_definition(
 
     return DefinitionInput(
         name=name or flow.workspace.name,
-        kind=infer_kind_from_graph(flow.graph),
+        kind=kind or infer_kind_from_graph(flow.graph),
         args=args + globals,
         returns=returns,
         portGroups=[],

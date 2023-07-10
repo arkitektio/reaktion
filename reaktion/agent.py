@@ -13,12 +13,13 @@ from rekuest.actors.transport.local_transport import (
 from fluss.api.schema import aget_flow
 from rekuest.api.schema import aget_template, NodeKind
 from rekuest.messages import Provision
-
+from typing import Optional
 from rekuest.contrib.fakts.websocket_agent_transport import FaktsWebsocketAgentTransport
 from rekuest.api.schema import (
     PortInput,
     DefinitionInput,
     TemplateFragment,
+    NodeKind,
     acreate_template,
     adelete_node,
     afind,
@@ -112,6 +113,7 @@ class ReaktionAgent(BaseAgent):
         flow: FlowFragment,
         name: str = None,
         description: str = None,
+        kind: Optional[NodeKind] = None,
     ) -> TemplateFragment:
         """Deploy Flow
 
@@ -130,7 +132,7 @@ class ReaktionAgent(BaseAgent):
         template = await acreate_template(
             interface=f"flow:{flow.id}",
             definition=convert_flow_to_definition(
-                flow, name=name, description=description
+                flow, name=name, description=description, kind=kind
             ),
             instance_id=self.instance_id,
             params={"flow": flow.id},

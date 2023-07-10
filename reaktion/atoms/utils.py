@@ -5,6 +5,7 @@ from fluss.api.schema import (
     ArkitektNodeFragment,
     LocalNodeFragment,
     FlowNodeFragment,
+    ArkitektFilterNodeFragment,
     ReactiveImplementationModelInput,
     ReactiveNodeFragment,
     MapStrategy,
@@ -16,6 +17,7 @@ from reaktion.atoms.arkitekt import (
     ArkitektAsCompletedAtom,
     ArkitektOrderedAtom,
 )
+from reaktion.atoms.arkitekt_filter import ArkitektFilterAtom
 from reaktion.atoms.local import LocalMapAtom, LocalMergeMapAtom
 from reaktion.atoms.transformation.chunk import ChunkAtom
 from reaktion.atoms.transformation.buffer_complete import BufferCompleteAtom
@@ -79,6 +81,19 @@ def atomify(
                 globals=globals,
                 alog=alog,
             )
+    if isinstance(node, ArkitektFilterNodeFragment):
+        if node.kind == NodeKind.FUNCTION:
+            if node.map_strategy == MapStrategy.MAP:
+                return ArkitektFilterAtom(
+                    node=node,
+                    contract=contract,
+                    transport=transport,
+                    assignment=assignment,
+                    globals=globals,
+                    alog=alog,
+                )
+        if node.kind == NodeKind.GENERATOR:
+            raise NotImplementedError("Generator cannot be used as a filter")
 
     if isinstance(node, LocalNodeFragment):
         if node.kind == NodeKind.FUNCTION:

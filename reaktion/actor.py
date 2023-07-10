@@ -9,6 +9,7 @@ from fluss.api.schema import (
     FlowFragment,
     LocalNodeFragment,
     ReactiveNodeFragment,
+    ArkitektFilterNodeFragment,
     ReturnNodeFragment,
     arun,
     asnapshot,
@@ -103,7 +104,10 @@ class FlowActor(Actor):
         [x for x in self.flow.graph.nodes if isinstance(x, ReturnNodeFragment)][0]
 
         arkitektNodes = [
-            x for x in self.flow.graph.nodes if isinstance(x, ArkitektNodeFragment)
+            x
+            for x in self.flow.graph.nodes
+            if isinstance(x, ArkitektNodeFragment)
+            or isinstance(x, ArkitektFilterNodeFragment)
         ]
 
         localNodes = [
@@ -213,6 +217,7 @@ class FlowActor(Actor):
                 x
                 for x in self.flow.graph.nodes
                 if isinstance(x, ArkitektNodeFragment)
+                or isinstance(x, ArkitektFilterNodeFragment)
                 or isinstance(x, ReactiveNodeFragment)
                 or isinstance(x, LocalNodeFragment)
             ]

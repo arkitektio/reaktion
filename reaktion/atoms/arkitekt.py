@@ -1,6 +1,5 @@
 import asyncio
 
-print(asyncio.Queue)
 from typing import Any, List, Optional
 from rekuest.postmans.utils import RPCContract
 from reaktion.atoms.helpers import node_to_reference

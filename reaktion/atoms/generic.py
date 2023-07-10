@@ -9,6 +9,71 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 
+class FilterAtom(Atom):
+    async def filter(self, event: InEvent) -> bool:
+        raise NotImplementedError("This needs to be implemented")
+
+    async def run(self):
+        try:
+            while True:
+                event = await self.get()
+
+                if event.type == EventType.NEXT:
+                    try:
+                        result = await self.filter(event)
+                        if result is True:
+                            await self.transport.put(
+                                OutEvent(
+                                    handle="return_0",
+                                    type=EventType.NEXT,
+                                    value=event.value,
+                                    source=self.node.id,
+                                    caused_by=[event.current_t],
+                                )
+                            )
+                    except Exception as e:
+                        logger.error(f"{self.node.id} map failed", exc_info=True)
+                        await self.transport.put(
+                            OutEvent(
+                                handle="return_0",
+                                type=EventType.ERROR,
+                                source=self.node.id,
+                                value=e,
+                                caused_by=[event.current_t],
+                            )
+                        )
+                        break
+
+                if event.type == EventType.COMPLETE:
+                    # Everything left of us is done, so we can shut down as well
+                    await self.transport.put(
+                        OutEvent(
+                            handle="return_0",
+                            type=EventType.COMPLETE,
+                            source=self.node.id,
+                            caused_by=[event.current_t],
+                        )
+                    )
+                    break  # Everything left of us is done, so we can shut down as well
+
+                if event.type == EventType.ERROR:
+                    await self.transport.put(
+                        OutEvent(
+                            handle="return_0",
+                            type=EventType.ERROR,
+                            value=event.value,
+                            source=self.node.id,
+                            caused_by=[event.current_t],
+                        )
+                    )
+                    break
+                    # We are not raising the exception here but monadicly killing it to the
+                    # left
+        except asyncio.CancelledError as e:
+            logger.debug(f"Atom {self.node} is getting cancelled")
+            raise e
+
+
 class MapAtom(Atom):
     async def map(self, event: InEvent) -> Returns:
         raise NotImplementedError("This needs to be implemented")

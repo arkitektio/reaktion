@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class FilterAtom(CombinationAtom):
+    # TODO: Rename to match as it maps to a specifc type
     complete: List[bool] = [False, False]
 
     async def run(self):
