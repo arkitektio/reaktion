@@ -33,7 +33,6 @@ class WithLatestAtom(CombinationAtom):
                     break
 
                 streamIndex = index_for_handle(event.handle)
-                print(streamIndex)
 
                 if event.type == EventType.COMPLETE:
                     if streamIndex == 0:

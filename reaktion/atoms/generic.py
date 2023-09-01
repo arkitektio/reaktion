@@ -152,9 +152,7 @@ class MergeMapAtom(Atom):
     async def run(self):
         try:
             while True:
-                print("Waiting for new event")
                 event = await self.get()
-                print("Got new event")
 
                 if event.type == EventType.NEXT:
                     try:
@@ -175,7 +173,6 @@ class MergeMapAtom(Atom):
                                 )
                             )
 
-                        print("DONE")
                     except Exception as e:
                         logger.error(f"{self.node.id} map failed")
                         await self.transport.put(

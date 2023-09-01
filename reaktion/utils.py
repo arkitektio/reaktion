@@ -13,7 +13,6 @@ from fluss.api.schema import (
 from .events import OutEvent, InEvent
 import pydantic
 from .errors import FlowLogicError
-from devtools import debug
 
 
 def connected_events(
@@ -61,9 +60,6 @@ def convert_flow_to_definition(
     description: str = None,
     kind: Optional[NodeKindInput] = None,
 ) -> DefinitionInput:
-    print([x.dict(by_alias=True) for x in flow.graph.args])
-    print([x.dict(by_alias=True) for x in flow.graph.returns])
-
     # assert localnodes are in the definitionregistry
     localNodes = [x for x in flow.graph.nodes if isinstance(x, LocalNodeFragment)]
     graphNodes = [x for x in flow.graph.nodes if isinstance(x, GraphNodeFragment)]
@@ -78,9 +74,6 @@ def convert_flow_to_definition(
     globals = [
         PortInput(**glob.port.dict(by_alias=True)) for glob in flow.graph.globals
     ]
-
-    debug(args)
-    debug(returns)
 
     return DefinitionInput(
         name=name or flow.workspace.name,

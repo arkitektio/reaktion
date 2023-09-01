@@ -73,8 +73,6 @@ class Atom(BaseModel):
     def set_values(self) -> Dict[str, Any]:
         defaults = getattr(self.node, "defaults", {}) or {}
         my_globals = self.globals or {}
-        print(my_globals, defaults)
-
         return {**defaults, **my_globals}
 
     class Config:

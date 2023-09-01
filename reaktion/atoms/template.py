@@ -17,7 +17,7 @@ class TemplateMapAtom(MapAtom):
             *args,
             **defaults,
             alog=self.alog_arkitekt,
-            parent=self.assignation.assignation
+            parent=self.assignment.assignation
         )
         return returns
         # return await self.contract.aassign(*args)

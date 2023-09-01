@@ -31,10 +31,8 @@ class FilterAtom(CombinationAtom):
 
                 if event.type == EventType.NEXT:
                     value = event.value[0]
-                    print(event.value)
                     real_value = value["value"]
                     index = value["use"]
-                    print(real_value, index)
                     await self.transport.put(
                         OutEvent(
                             handle=f"return_{index}",

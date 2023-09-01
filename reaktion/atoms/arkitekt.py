@@ -24,8 +24,6 @@ class ArkitektMapAtom(MapAtom):
         for arg, item in zip(event.value, stream_one):
             kwargs[item.key] = arg
 
-        print("kwargs", kwargs)
-
         returns = await self.contract.aassign_retry(
             kwargs=kwargs,
             parent=self.assignment,
@@ -52,8 +50,6 @@ class ArkitektMergeMapAtom(MergeMapAtom):
         for arg, item in zip(event.value, stream_one):
             kwargs[item.key] = arg
 
-        print("kwargs", kwargs)
-
         async for r in self.contract.astream_retry(
             kwargs=kwargs,
             parent=self.assignment,
@@ -65,8 +61,6 @@ class ArkitektMergeMapAtom(MergeMapAtom):
                 out.append(r[arg.key])
 
             yield out
-
-        print("MergeMap atom Done")
 
 
 class ArkitektAsCompletedAtom(AsCompletedAtom):

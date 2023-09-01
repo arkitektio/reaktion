@@ -51,7 +51,6 @@ class ZipAtom(CombinationAtom):
                 if event.type == EventType.NEXT:
                     self.state[index_for_handle(event.handle)] = event
                     if all(map(lambda x: x is not None, self.state)):
-                        print(self.state)
                         await self.transport.put(
                             OutEvent(
                                 handle="return_0",

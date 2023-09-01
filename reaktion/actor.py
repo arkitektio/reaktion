@@ -21,7 +21,7 @@ from fluss.api.schema import (
 from reaktion.atoms.transport import AtomTransport
 
 from reaktion.atoms.utils import atomify
-from reaktion.contractors import NodeContractor, arkicontractor, localcontractor
+from reaktion.contractors import NodeContractor, arkicontractor
 from reaktion.events import EventType, InEvent, OutEvent
 
 from reaktion.utils import connected_events
@@ -44,8 +44,6 @@ from rekuest.actors.transport.local_transport import ProxyActorTransport
 
 logger = logging.getLogger(__name__)
 
-print(asyncio)
-
 
 class NodeState(BaseModel):
     latestevent: OutEvent
@@ -62,7 +60,6 @@ class FlowActor(Actor):
     provided = False
     is_generator: bool = False
     arkitekt_contractor: NodeContractor = arkicontractor
-    local_contractor: NodeContractor = localcontractor
     snapshot_interval: int = 40
     condition_snapshot_interval: int = 40
     contract_states: Dict[str, ContractStatus] = Field(default_factory=dict)
@@ -110,28 +107,17 @@ class FlowActor(Actor):
             or isinstance(x, ArkitektFilterNodeFragment)
         ]
 
-        localNodes = [
-            x for x in self.flow.graph.nodes if isinstance(x, LocalNodeFragment)
-        ]
-
         arkitekt_contracts = {
             node.id: await self.arkitekt_contractor(node, self)
             for node in arkitektNodes
         }
 
-        local_contracts = {
-            node.id: await self.local_contractor(node, self) for node in localNodes
-        }
-
-        self.contracts = {**arkitekt_contracts, **local_contracts}
-        print("Entering Contracts")
+        self.contracts = {**arkitekt_contracts}
         futures = [contract.aenter() for contract in self.contracts.values()]
-        for contract in arkitekt_contracts.values():
-            print(contract.assign_timeout)
         await asyncio.gather(*futures)
 
     async def on_local_log(self, reference, *args, **kwargs):
-        print(f"LOCAL LOG for {reference}", args, kwargs)
+        logger.log(f"Contract log for {reference} {args} {kwargs}")
 
     async def on_local_change(
         self,
@@ -147,7 +133,7 @@ class FlowActor(Actor):
     async def on_contract_change(
         self, state: ContractStatus = None, reference: str = None
     ):
-        print("Changed contract")
+        logger.debug(f"Contract change {reference}: {state} ")
 
         async with self._lock:
             if reference:
@@ -167,13 +153,14 @@ class FlowActor(Actor):
             if len(inactive_contracts) > 0:
                 await self.aset_status(
                     status=ProvisionStatus.CRITICAL,
+                    message="One or more contracts are inactive",
                 )
-                print("Setting unactive")
+                logger.warning("Contract is inactive")
+
             else:
                 await self.aset_status(
                     status=ProvisionStatus.ACTIVE,
                 )
-                print(f"Setting {self.flow.name} Active")
 
             if self.contract_t % self.snapshot_interval == 0:
                 await self.condition_snapshot_mutation(
@@ -194,8 +181,9 @@ class FlowActor(Actor):
             flow=self.flow,
             snapshot_interval=self.snapshot_interval,
         )
+        print(self.is_generator)
 
-        await transport.log_to_assignation(message="Starting")
+        await transport.log(level="INFO", message="Starting")
 
         t = 0
         state = {}
@@ -222,7 +210,7 @@ class FlowActor(Actor):
                 or isinstance(x, LocalNodeFragment)
             ]
 
-            await transport.log_to_assignation(message="Set up the graph")
+            await transport.log(level="INFO", message="Set up the graph")
 
             stream = self.flow.graph.args
             stream_keys = []
@@ -250,11 +238,8 @@ class FlowActor(Actor):
                                 nodeid, key = map.split(".")
                                 globalMap.setdefault(nodeid, {})[key] = arg
 
-            print("The stream Map", streamMap)
-            print("The globals Map", globalMap)
-
             async def ass_log(assignation: Assignation, level, message):
-                await transport.log_to_assignation(level, message)
+                await transport.log(level, message)
                 logging.info(f"{assignation}, {message}")
 
             atoms = {
@@ -269,14 +254,11 @@ class FlowActor(Actor):
                 for x in participatingNodes
             }
 
-            await transport.log_to_assignation(message="Atomification complete")
+            await transport.log(level="INFO", message="Atomification complete")
 
-            print("Enterying ")
             await asyncio.gather(*[atom.aenter() for atom in atoms.values()])
-            print("Enterying complete")
-
             tasks = [asyncio.create_task(atom.start()) for atom in atoms.values()]
-
+            logger.info("Starting all Atoms")
             value = [streamMap[key] for key in stream_keys]
 
             initial_event = OutEvent(
@@ -305,7 +287,6 @@ class FlowActor(Actor):
                 if len(x.instream[0]) == 0 and x.id not in edge_targets
             ]
 
-            logger.error(f"Nodes without instream: {nodes_without_instream}")
             for node in nodes_without_instream:
                 assert node.id in atoms, "Atom not found. Should not happen."
                 atom = atoms[node.id]
@@ -332,7 +313,6 @@ class FlowActor(Actor):
             returns = []
 
             while not complete:
-                print("Not Exit")
                 event: OutEvent = await event_queue.get()
                 event_queue.task_done()
 
@@ -375,7 +355,8 @@ class FlowActor(Actor):
                         if spawned_event.type == EventType.NEXT:
                             returns = spawned_event.value
                             if self.is_generator:
-                                await transport.change_assignation(
+                                print("Yielded")
+                                await transport.change(
                                     status=AssignationStatus.YIELD,
                                     returns=returns,
                                 )
@@ -392,15 +373,17 @@ class FlowActor(Actor):
                             )
                             complete = True
                             if not self.is_generator:
-                                print("Returned :)")
-                                await transport.change_assignation(
+                                await transport.change(
                                     status=AssignationStatus.RETURNED,
                                     returns=returns,
                                 )
                             else:
-                                await transport.change_assignation(
+                                print("Done")
+                                await transport.change(
                                     status=AssignationStatus.DONE,
                                 )
+
+                            logger.info("Done ! :)")
 
                     else:
                         assert (
@@ -430,17 +413,15 @@ class FlowActor(Actor):
                 pass
 
             await self.collector.collect(assignment.id)
-            await transport.change_assignation(status=AssignationStatus.CANCELLED)
+            await transport.change(status=AssignationStatus.CANCELLED)
 
         except Exception as e:
             logging.critical(f"Assignation {assignment} failed", exc_info=True)
             await self.snapshot_mutation(run=run, events=list(state.values()), t=t)
-            await transport.log_to_assignation(
-                message="Starting", level=AssignationStatus.ERROR
-            )
+            await transport.log(message="Starting", level=AssignationStatus.ERROR)
 
             await self.collector.collect(assignment.id)
-            await transport.change_assignation(
+            await transport.change(
                 status=AssignationStatus.CRITICAL,
                 message=repr(e),
             )

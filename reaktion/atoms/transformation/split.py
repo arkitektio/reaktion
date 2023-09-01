@@ -30,7 +30,6 @@ class SplitAtom(CombinationAtom):
 
                 if event.type == EventType.NEXT:
                     for index, stream in enumerate(self.node.outstream):
-                        print(event.value[index])
                         if event.value[index] is not None:
                             await self.transport.put(
                                 OutEvent(

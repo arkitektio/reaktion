@@ -31,8 +31,6 @@ class ChunkAtom(CombinationAtom):
                     )
                     break
 
-                print(self.node)
-
                 if event.type == EventType.NEXT:
                     assert (
                         len(event.value) == 1
@@ -44,7 +42,6 @@ class ChunkAtom(CombinationAtom):
 
                     for i in range(iterations):
                         for value in event.value[0]:
-                            print("SENDING", value)
                             await self.transport.put(
                                 OutEvent(
                                     handle="return_0",

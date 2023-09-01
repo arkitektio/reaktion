@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "reaktion"
-version = "0.1.36"
+version = "0.1.46"
 description = ""
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = " >=3.8,<=3.12"
-rekuest = ">=0.1.30"
-fluss = ">=0.1.44"
+rekuest = ">=0.2.9"
+fluss = ">=0.1.59"
 
 [tool.poetry.group.dev.dependencies]
 testcontainers = "3.7.0"

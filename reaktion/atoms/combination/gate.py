@@ -23,6 +23,7 @@ class GateAtom(CombinationAtom):
         try:
             while True:
                 event = await self.get()
+                logger.info(f"GateAtom {self.node} received {event}")
 
                 if event.type == EventType.ERROR:
                     await self.transport.put(
@@ -37,7 +38,6 @@ class GateAtom(CombinationAtom):
                     break
 
                 streamIndex = index_for_handle(event.handle)
-                print(streamIndex)
 
                 if event.type == EventType.COMPLETE:
                     if streamIndex == 0:
@@ -55,7 +55,6 @@ class GateAtom(CombinationAtom):
 
                         else:
                             await self.buffer.put(event)
-                        await self.buffer.put(event)
 
                 if event.type == EventType.NEXT:
                     if streamIndex == 0:
@@ -72,6 +71,7 @@ class GateAtom(CombinationAtom):
                             forward_first = False
 
                         else:
+                            logger.info("Buffering event")
                             await self.buffer.put(event)
 
                     else:
