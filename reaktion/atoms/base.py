@@ -23,7 +23,7 @@ class Atom(BaseModel):
     globals: Dict[str, Any] = Field(default_factory=dict)
     assignment: Assignment
 
-    _private_queue: asyncio.Queue[InEvent] = None
+    _private_queue: asyncio.Queue = None
 
     async def run(self):
         raise NotImplementedError("This needs to be implemented")
