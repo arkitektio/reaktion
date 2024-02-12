@@ -23,10 +23,6 @@ def build_flow(path):
     return FlowFragment(**g)
 
 
-@pytest.fixture(scope="session")
-def add_three_flow():
-    return build_flow("flowjsons/add_three_flow.json")
-
 
 @pytest.fixture(scope="session")
 def arkitekt_generator_node():
@@ -38,6 +34,10 @@ def arkitekt_generator_node():
         kind=NodeKind.GENERATOR,
         mapStrategy=MapStrategy.MAP,
         reserveParams={},
+        retryDelay=1000,
+        assignTimeout=1000,
+        yieldTimeout=1000,
+        reserveTimeout=1000,    
         allowLocal=False,
         defaults={},
         constream=[],
@@ -69,6 +69,11 @@ def arkitekt_functional_node():
         mapStrategy=MapStrategy.MAP,
         reserveParams={},
         allowLocal=False,
+        maxRetries=1,
+        retryDelay=1000,
+        assignTimeout=1000,
+        yieldTimeout=1000,
+        reserveTimeout=1000,    
         defaults={},
         constream=[],
         instream=[
@@ -163,7 +168,7 @@ def reactive_chunk_node_with_defaults():
                     kind=StreamKind.LIST,
                     nullable=False,
                     scope=Scope.GLOBAL,
-                    child=StreamItemChildFragment(
+                    child=StreamItemFragment(
                         key=1, kind=StreamKind.INT, nullable=False, scope=Scope.GLOBAL
                     ),
                 )

@@ -1,27 +1,23 @@
 [tool.poetry]
 name = "reaktion"
-version = "0.1.48"
+version = "0.1.50"
 description = ""
 authors = ["jhnnsrs <jhnnsrs@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = " >=3.8,<=3.12"
-rekuest = ">=0.2.9"
-fluss = ">=0.1.59"
+python = " >=3.8,<4.0"
+rekuest = ">=0.2.29"
+fluss = ">=0.1.61"
 
 [tool.poetry.group.dev.dependencies]
-testcontainers = "3.7.0"
 autoflake = "^1.7.7"
 pytest = "^7.2.0"
-PyQtWebEngine = "^5.15.5"
-PyQt5 = "^5.15.6"
-pytest-qt = "^4.2.0"
 pytest-asyncio = "^0.20.2"
 turms = { version = ">=0.2.3", python = "^3.9" }
 aiohttp = "^3.8.3"
 websockets = "^10.4"
 black = "^22.10.0"
-arkitekt = "0.4.83"
+arkitekt = "0.7.8"
 
 
 [tool.pytest.ini_options]

@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from rekuest.actors.base import Assignment
 from rekuest.agents.transport.protocols.agent_json import *
 from rekuest.messages import Assignation
 
@@ -22,12 +23,12 @@ async def test_split(
     event_queue = asyncio.Queue()
     atomtransport = MockTransport(queue=event_queue)
 
-    assignation = Assignation(assignation=1, user=1, provision=1, args=[])
+    assignment = Assignment(assignation=1, user=1, provision=1, args=[])
 
     async with SplitAtom(
         node=reactive_split_node,
         transport=atomtransport,
-        assignation=assignation,
+        assignment=assignment,
     ) as atom:
         task = asyncio.create_task(atom.start())
 
