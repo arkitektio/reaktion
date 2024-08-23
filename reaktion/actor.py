@@ -325,9 +325,11 @@ class FlowActor(Actor):
                     source=event.source,
                     handle=event.handle,
                     caused_by=event.caused_by,
-                    value=event.value
-                    if event.value and not isinstance(event.value, Exception)
-                    else str(event.value),
+                    value=(
+                        event.value
+                        if event.value and not isinstance(event.value, Exception)
+                        else str(event.value)
+                    ),
                     type=event.type,
                     t=t,
                 )

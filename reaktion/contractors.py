@@ -13,8 +13,9 @@ from rekuest.actors.base import Actor
 
 @runtime_checkable
 class NodeContractor(Protocol):
-    async def __call__(self, node: ArkitektNodeFragment, actor: Actor) -> RPCContract:
-        ...
+    async def __call__(
+        self, node: ArkitektNodeFragment, actor: Actor
+    ) -> RPCContract: ...
 
 
 async def arkicontractor(node: ArkitektNodeFragment, actor: Actor) -> RPCContract:
@@ -39,11 +40,13 @@ async def arkicontractor(node: ArkitektNodeFragment, actor: Actor) -> RPCContrac
             arkinode.scope == NodeScope.GLOBAL
         ), "Non GlobalNodes that are not implemented on this agent cannot be put into a workflow"
         return arkiuse(
-            binds=ReserveBindsInput(
-                clients=node.binds.clients, templates=node.binds.templates
-            )
-            if node.binds
-            else None,
+            binds=(
+                ReserveBindsInput(
+                    clients=node.binds.clients, templates=node.binds.templates
+                )
+                if node.binds
+                else None
+            ),
             hash=node.hash,
             postman=get_current_postman(),
             provision=actor.passport.provision,
