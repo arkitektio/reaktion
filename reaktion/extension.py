@@ -153,3 +153,6 @@ class ReaktionExtension(BaseModel):
 
         await adelete_node(x)
         return None
+
+    async def atear_down(self):
+        pass
