@@ -1,5 +1,5 @@
 from typing import List, Tuple, Union, List, Tuple, Any, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, validator
 from enum import Enum
 
 
@@ -13,6 +13,13 @@ Returns = Tuple[Any, ...]
 
 
 class InEvent(BaseModel):
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders={
+            Exception: lambda v: str(v),
+            Returns: lambda v: tuple(v),
+        },
+    )
     target: str
     """The node that is targeted by the event"""
     handle: str = Field(..., description="The handle of the port")
@@ -40,11 +47,16 @@ class InEvent(BaseModel):
 
         return v
 
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class OutEvent(BaseModel):
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_encoders={
+            Exception: lambda v: str(v),
+            Returns: lambda v: tuple(v),
+        },
+    )
     source: str
     """ The node that emitted the event """
     handle: str = Field(..., description="The handle of the port")
@@ -96,6 +108,3 @@ class OutEvent(BaseModel):
             "type": self.type,
             "value": value,
         }
-
-    class Config:
-        arbitrary_types_allowed = True

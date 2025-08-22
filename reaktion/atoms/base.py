@@ -1,6 +1,6 @@
 import asyncio
 from typing import Awaitable, Callable, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from rekuest.api.schema import AssignationLogLevel
 from rekuest.messages import Assignation
 from fluss.api.schema import FlowNodeCommonsFragmentBase
@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class Atom(BaseModel):
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
     node: FlowNodeCommonsFragmentBase
     transport: AtomTransport
     alog: Optional[Callable[[str, AssignationLogLevel, str], Awaitable[None]]] = Field(
@@ -75,6 +78,3 @@ class Atom(BaseModel):
         my_globals = self.globals or {}
         return {**defaults, **my_globals}
 
-    class Config:
-        arbitrary_types_allowed = True
-        underscore_attrs_are_private = True

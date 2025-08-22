@@ -1,9 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import asyncio
 from reaktion.events import OutEvent
 
 
+
 class AtomTransport(BaseModel):
+    model_config = ConfigDict( 
+        arbitrary_types_allowed=True,
+    )
+    """ The transport layer for the atom. This is used to send and receive events. """
     queue: asyncio.Queue
 
     async def put(self, event: OutEvent):
@@ -12,8 +17,6 @@ class AtomTransport(BaseModel):
     async def get(self) -> OutEvent:
         return await self.queue.get()
 
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class MockTransport(AtomTransport):
