@@ -31,7 +31,6 @@ from fluss.api.schema import (
 )
 from reaktion.utils import infer_kind_from_graph
 from rekuest.widgets import SliderWidget, StringWidget
-from rekuest.structures.default import get_default_structure_registry
 from rekuest.structures.registry import StructureRegistry
 from pydantic import BaseModel, Field
 from .utils import convert_flow_to_definition
@@ -45,7 +44,7 @@ from rekuest.actors.base import ActorTransport
 
 class ReaktionExtension(BaseModel):
     structure_registry: StructureRegistry = Field(
-        default_factory=get_default_structure_registry
+        default_factory=StructureRegistry
     )
 
     async def aspawn_actor_from_template(
